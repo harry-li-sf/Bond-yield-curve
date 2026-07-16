@@ -851,8 +851,9 @@
             const result = [];
             for (let i = 0; i < forecastDates.length; i++) {
                 const fDate = forecastDates[i];
-                const d = businessDaysBetween(refDate, fDate);
-                let histCount = period - d;
+                // forecastDates already contains trading days after refDate, so
+                // the business-day distance is simply the 1-based array index.
+                let histCount = period - (i + 1);
                 if (histCount < 0) histCount = 0;
                 const actualHistCount = Math.min(histCount, totalHist);
                 const a = totalHist - actualHistCount;
@@ -1794,6 +1795,18 @@
 
         // 计算某期限的时间序列MA（返回 [{date, value}] 数组）
         function calcMATimeSeries(term, period) {
+            ensureMAPrefixSums();
+            if (maPrefixSum && maPrefixSum[term]) {
+                const dates = dataStore.dates;
+                return dates.map((d, i) => {
+                    const n = Math.min(period, i + 1);
+                    const a = i - n + 1;
+                    const b = i + 1;
+                    const count = maPrefixValid[b] - maPrefixValid[a];
+                    const sum = maPrefixSum[term][b] - maPrefixSum[term][a];
+                    return { date: d, value: count > 0 ? sanitizeRate(sum / count) : null };
+                });
+            }
             const dates = dataStore.dates;
             const rates = dataStore.rates;
             const result = [];
@@ -2149,7 +2162,42 @@
             XLSX.writeFile(wb, bondLabel + '_MA期限曲线_' + suffix + '.xlsx');
         }
 
-        function renderAll() {
+        let deferredDetailRenderId = 0;
+        let detailRenderedStoreRef = null;
+
+        function renderDeferredDetailSections() {
+            populateForecastDateSelector();
+            renderForecastChart();
+            renderQuarterTable();
+            renderHistoryTable();
+            initMAAnalysis();
+            renderMATimeSeriesChart();
+            renderMACurveChart();
+        }
+
+        function scheduleDeferredDetailSections() {
+            const token = ++deferredDetailRenderId;
+            const run = function() {
+                if (token !== deferredDetailRenderId) return;
+                if (document.getElementById('viewDetail').style.display === 'none') return;
+                renderDeferredDetailSections();
+            };
+            if ('requestIdleCallback' in window) {
+                requestIdleCallback(run, { timeout: 300 });
+            } else {
+                setTimeout(run, 0);
+            }
+        }
+
+        function renderOverviewReady() {
+            if (!dataStore || !dataStore.latestDate) return;
+            document.getElementById('latestDateLabel').textContent = dataStore.latestDate;
+            if (!selectedDate) selectedDate = dataStore.latestDate;
+            if (!forecastRefDate) forecastRefDate = dataStore.latestDate;
+        }
+
+        function renderAll(options) {
+            options = options || {};
             document.getElementById('latestDateLabel').textContent = dataStore.latestDate;
             if (!selectedDate) selectedDate = dataStore.latestDate;
             if (!forecastRefDate) forecastRefDate = dataStore.latestDate;
@@ -2158,13 +2206,12 @@
             updateMetrics();
             renderCurveChart();
             renderKeyTermsTable();
-            populateForecastDateSelector();
-            renderForecastChart();
-            renderQuarterTable();
-            renderHistoryTable();
-            initMAAnalysis();
-            renderMATimeSeriesChart();
-            renderMACurveChart();
+            if (options.deferHeavy === false) {
+                renderDeferredDetailSections();
+            } else {
+                scheduleDeferredDetailSections();
+            }
+            detailRenderedStoreRef = dataStore;
         }
 
         // 填充预测基准日选择器（750MA预测 + 季度末预测 共用）
@@ -2389,6 +2436,10 @@
             // 切换曲线类型
             if (type !== currentBondType) {
                 await switchBondType(type);
+            } else if (detailRenderedStoreRef !== dataStore) {
+                recalcForecastData();
+                renderAll();
+                updateBondTypeUI();
             }
             // 更新 URL hash
             history.replaceState(null, '', '#' + type);
@@ -2671,8 +2722,7 @@
                 document.getElementById('uploadStatus').textContent = '内嵌数据 (' + dataStore.dates.length + ' 条, ' + dataStore.dates[0] + ' ~ ' + dataStore.latestDate + ')';
                 document.getElementById('uploadStatus').style.color = '#2e7d32';
                 forecastRefDate = null;
-                recalcForecastData();
-                renderAll();
+                renderOverviewReady();
                 return;
             }
 
@@ -2690,8 +2740,7 @@
                         document.getElementById('uploadStatus').textContent = '云端数据 (' + dataStore.dates.length + ' 条, ' + dataStore.dates[0] + ' ~ ' + dataStore.latestDate + ')';
                         document.getElementById('uploadStatus').style.color = '#2e7d32';
                         forecastRefDate = null;
-                        recalcForecastData();
-                        renderAll();
+                        renderOverviewReady();
                         return;
                     }
                 }
@@ -2704,8 +2753,7 @@
             if (serverOk) {
                 dataStores.gov_spot = dataStore;
                 forecastRefDate = null;
-                recalcForecastData();
-                renderAll();
+                renderOverviewReady();
                 return;
             }
 
@@ -2720,8 +2768,7 @@
                 document.getElementById('uploadStatus').textContent = '从浏览器缓存加载 (' + dataStore.dates.length + ' 条)';
                 document.getElementById('uploadStatus').style.color = '#888';
                 forecastRefDate = null;
-                recalcForecastData();
-                renderAll();
+                renderOverviewReady();
                 return;
             }
 
