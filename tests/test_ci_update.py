@@ -51,9 +51,118 @@ class BootstrapTests(unittest.TestCase):
 
 
 class UpdateTests(unittest.TestCase):
+    def test_new_dataset_without_metadata_rebuilds_from_start_date(self):
+        dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "rail_ytm")
+        old_wrong_data = {
+            "dates": ["2026-07-15"],
+            "terms": dataset.terms,
+            "rows": [[1.224232] + [None] * (len(dataset.terms) - 1)],
+        }
+
+        fetch_start = ci_update.next_fetch_date_for_dataset(dataset, old_wrong_data)
+
+        self.assertEqual(fetch_start, ci_update.START_DATE)
+
+    def test_legacy_dataset_without_metadata_keeps_incremental_update(self):
+        dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "gov_spot")
+        legacy_data = {
+            "dates": ["2026-07-15"],
+            "terms": dataset.terms,
+            "rows": [[1.0] + [None] * (len(dataset.terms) - 1)],
+        }
+
+        fetch_start = ci_update.next_fetch_date_for_dataset(dataset, legacy_data)
+
+        self.assertEqual(fetch_start, "2026-07-16")
+
+    def test_update_all_fetches_local_government_separately_from_bundles(self):
+        datasets = [
+            next(d for d in ci_update.ALL_DATASETS if d.key == "rail_ytm"),
+            next(d for d in ci_update.ALL_DATASETS if d.key == "local_gov_ytm"),
+        ]
+        states = {
+            dataset.filename: {"dates": [], "terms": dataset.terms, "rows": [], "meta": dataset.meta}
+            for dataset in datasets
+        }
+        calls = []
+        saved = {}
+
+        def fake_load_existing(filepath, terms=None):
+            return states[filepath]
+
+        def fake_fetch_searchyc_bundle(curves, qxll, day):
+            calls.append([curve.key for curve in curves])
+            return {curve.key: {"1Y": 1.0} for curve in curves}
+
+        with patch.object(ci_update, "ALL_DATASETS", datasets), \
+             patch.object(ci_update, "load_existing", side_effect=fake_load_existing), \
+             patch.object(ci_update, "save_json", side_effect=lambda path, data: saved.update({path: data})), \
+             patch.object(ci_update, "iter_weekdays", return_value=["2026-07-15"]), \
+             patch.object(ci_update, "fetch_searchyc_bundle", side_effect=fake_fetch_searchyc_bundle):
+            changed = ci_update.update_all_datasets("2026-07-15")
+
+        self.assertIn(["rail"], calls)
+        self.assertIn(["local_gov"], calls)
+        self.assertNotIn(["rail", "local_gov"], calls)
+        self.assertTrue(changed["rail_ytm"])
+        self.assertTrue(changed["local_gov_ytm"])
+
+    def test_update_all_bootstraps_local_government_spot_from_isolated_ytm_request(self):
+        dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "local_gov_spot")
+        states = {
+            dataset.filename: {"dates": [], "terms": dataset.terms, "rows": [], "meta": dataset.meta}
+        }
+        calls = []
+        saved = {}
+
+        def fake_load_existing(filepath, terms=None):
+            return states[filepath]
+
+        def fake_fetch_searchyc_bundle(curves, qxll, day):
+            calls.append(([curve.key for curve in curves], qxll))
+            return {"local_gov": {"1Y": 2.0, "2Y": 3.0}}
+
+        with patch.object(ci_update, "ALL_DATASETS", [dataset]), \
+             patch.object(ci_update, "load_existing", side_effect=fake_load_existing), \
+             patch.object(ci_update, "save_json", side_effect=lambda path, data: saved.update({path: data})), \
+             patch.object(ci_update, "iter_weekdays", return_value=["2026-07-15"]), \
+             patch.object(ci_update, "fetch_searchyc_bundle", side_effect=fake_fetch_searchyc_bundle):
+            changed = ci_update.update_all_datasets("2026-07-15")
+
+        self.assertEqual(calls, [(["local_gov"], "0")])
+        self.assertTrue(changed["local_gov_spot"])
+        self.assertGreater(saved[dataset.filename]["rows"][0][1], 3.0)
+
+    def test_update_all_reuses_local_government_ytm_for_spot_and_ytm(self):
+        spot = next(d for d in ci_update.ALL_DATASETS if d.key == "local_gov_spot")
+        ytm = next(d for d in ci_update.ALL_DATASETS if d.key == "local_gov_ytm")
+        states = {
+            dataset.filename: {"dates": [], "terms": dataset.terms, "rows": [], "meta": dataset.meta}
+            for dataset in [spot, ytm]
+        }
+        calls = []
+
+        def fake_load_existing(filepath, terms=None):
+            return states[filepath]
+
+        def fake_fetch_searchyc_bundle(curves, qxll, day):
+            calls.append(([curve.key for curve in curves], qxll))
+            return {"local_gov": {"1Y": 2.0, "2Y": 3.0}}
+
+        with patch.object(ci_update, "ALL_DATASETS", [spot, ytm]), \
+             patch.object(ci_update, "load_existing", side_effect=fake_load_existing), \
+             patch.object(ci_update, "save_json"), \
+             patch.object(ci_update, "iter_weekdays", return_value=["2026-07-15"]), \
+             patch.object(ci_update, "fetch_searchyc_bundle", side_effect=fake_fetch_searchyc_bundle):
+            changed = ci_update.update_all_datasets("2026-07-15")
+
+        self.assertEqual(calls, [(["local_gov"], "0")])
+        self.assertTrue(changed["local_gov_spot"])
+        self.assertTrue(changed["local_gov_ytm"])
+
     def test_update_dataset_writes_bootstrapped_local_government_spot(self):
         dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "local_gov_spot")
-        existing = {"dates": [], "terms": dataset.terms, "rows": []}
+        existing = {"dates": [], "terms": dataset.terms, "rows": [], "meta": dataset.meta}
         fetched_ytm = {"1Y": 2.0, "2Y": 3.0, "3Y": 4.0}
         saved = {}
 
