@@ -82,6 +82,7 @@
         .dash-card[data-bond="cdb_spot"]::before { background: #e8821e; }
         .dash-card[data-bond="cdb_ytm"] { background: linear-gradient(135deg, #fdeef3 0%, #fff8fb 100%); border: 1px solid #f2bcd2; }
         .dash-card[data-bond="cdb_ytm"]::before { background: #d6336c; }
+        .dash-card.active { box-shadow: 0 0 0 3px rgba(31,74,122,0.35), 0 10px 30px rgba(0,20,50,0.14); }
         .dash-card.active[data-bond="gov_spot"] { box-shadow: 0 0 0 3px rgba(47,111,208,0.55), 0 10px 30px rgba(0,20,50,0.16); }
         .dash-card.active[data-bond="gov_ytm"] { box-shadow: 0 0 0 3px rgba(31,157,87,0.55), 0 10px 30px rgba(0,20,50,0.16); }
         .dash-card.active[data-bond="cdb_spot"] { box-shadow: 0 0 0 3px rgba(232,130,30,0.55), 0 10px 30px rgba(0,20,50,0.16); }
@@ -511,13 +512,47 @@
         let maPrefixSum = null;      // { term: Float数组 长度N+1 }：仅累计有效行的各期限前缀和
         let maPrefixStoreRef = null; // 记录当前 dataStore 引用，变化时重建前缀和
         let currentBondType = 'gov_spot';
-        let dataStores = { gov_spot: null, gov_ytm: null, cdb_spot: null, cdb_ytm: null };
+        const BOND_CONFIGS = [
+            { key: 'gov_spot', name: '中债国债即期', shortName: '国债', file: 'data.json', measure: '即期' },
+            { key: 'gov_ytm', name: '中债国债到期', shortName: '国债', file: 'data_gov_ytm.json', measure: '到期' },
+            { key: 'cdb_spot', name: '中债国开债即期', shortName: '国开债', file: 'data_cdb.json', measure: '即期' },
+            { key: 'cdb_ytm', name: '中债国开债到期', shortName: '国开债', file: 'data_cdb_ytm.json', measure: '到期' },
+            { key: 'rail_spot', name: '中债铁道债即期', shortName: '铁道债', file: 'data_rail_spot.json', measure: '即期' },
+            { key: 'rail_ytm', name: '中债铁道债到期', shortName: '铁道债', file: 'data_rail_ytm.json', measure: '到期' },
+            { key: 'corp_aaa_spot', name: '中债企业债(AAA)即期', shortName: 'AAA企业债', file: 'data_corp_aaa_spot.json', measure: '即期' },
+            { key: 'corp_aaa_ytm', name: '中债企业债(AAA)到期', shortName: 'AAA企业债', file: 'data_corp_aaa_ytm.json', measure: '到期' },
+            { key: 'exim_spot', name: '中债进出口行债即期', shortName: '进出口行债', file: 'data_exim_spot.json', measure: '即期' },
+            { key: 'exim_ytm', name: '中债进出口行债到期', shortName: '进出口行债', file: 'data_exim_ytm.json', measure: '到期' },
+            { key: 'adbc_spot', name: '中债农发行债即期', shortName: '农发行债', file: 'data_adbc_spot.json', measure: '即期' },
+            { key: 'adbc_ytm', name: '中债农发行债到期', shortName: '农发行债', file: 'data_adbc_ytm.json', measure: '到期' },
+            { key: 'local_gov_spot', name: '中国地方政府债即期', shortName: '地方政府债', file: 'data_local_gov_spot.json', measure: '即期' },
+            { key: 'local_gov_ytm', name: '中国地方政府债到期', shortName: '地方政府债', file: 'data_local_gov_ytm.json', measure: '到期' },
+            { key: 'corp_aa_spot', name: '中债企业债(AA)即期', shortName: 'AA企业债', file: 'data_corp_aa_spot.json', measure: '即期' },
+            { key: 'corp_aa_ytm', name: '中债企业债(AA)到期', shortName: 'AA企业债', file: 'data_corp_aa_ytm.json', measure: '到期' },
+            { key: 'corp_a_spot', name: '中债企业债(A)即期', shortName: 'A企业债', file: 'data_corp_a_spot.json', measure: '即期' },
+            { key: 'corp_a_ytm', name: '中债企业债(A)到期', shortName: 'A企业债', file: 'data_corp_a_ytm.json', measure: '到期' }
+        ];
+        const BOND_KEYS = BOND_CONFIGS.map(cfg => cfg.key);
+        const bondConfigByKey = Object.fromEntries(BOND_CONFIGS.map(cfg => [cfg.key, cfg]));
+        let dataStores = Object.fromEntries(BOND_KEYS.map(key => [key, null]));
         let bondLoading = {};
-        const bondNames = { gov_spot: '国债即期', gov_ytm: '国债到期', cdb_spot: '国开债即期', cdb_ytm: '国开债到期' };
-        const bondFiles = { gov_spot: 'data.json', gov_ytm: 'data_gov_ytm.json', cdb_spot: 'data_cdb.json', cdb_ytm: 'data_cdb_ytm.json' };
-        const bondShortNames = { gov_spot: '国债', gov_ytm: '国债', cdb_spot: '国开债', cdb_ytm: '国开债' };
+        const bondNames = Object.fromEntries(BOND_CONFIGS.map(cfg => [cfg.key, cfg.name]));
+        const bondFiles = Object.fromEntries(BOND_CONFIGS.map(cfg => [cfg.key, cfg.file]));
+        const bondShortNames = Object.fromEntries(BOND_CONFIGS.map(cfg => [cfg.key, cfg.shortName]));
         function bondName() { return bondNames[currentBondType]; }
         function bondShortName() { return bondShortNames[currentBondType]; }
+        function renderBondToggleButtons() {
+            const toggle = document.getElementById('bondToggle');
+            if (!toggle) return;
+            toggle.innerHTML = '';
+            BOND_CONFIGS.forEach(cfg => {
+                const btn = document.createElement('button');
+                btn.dataset.bond = cfg.key;
+                btn.textContent = cfg.name.replace(/^中债/, '').replace(/^中国/, '');
+                btn.className = cfg.key === currentBondType ? 'active' : '';
+                toggle.appendChild(btn);
+            });
+        }
         const KEY_TERMS = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y'];
         let selectedDate = null;
         let forecastDataAll = [];          // 所有预测数据（每天）
@@ -2468,8 +2503,7 @@
 
         function handleHashChange() {
             const hash = location.hash.replace('#', '');
-            const validTypes = ['gov_spot', 'gov_ytm', 'cdb_spot', 'cdb_ytm'];
-            if (validTypes.includes(hash)) {
+            if (BOND_KEYS.includes(hash)) {
                 showDetail(hash);
             } else {
                 showOverview();
@@ -2480,6 +2514,7 @@
         // 初始化
         // ================================================================
         function setupEventListeners() {
+            renderBondToggleButtons();
             // 视图切换
             document.querySelectorAll('#forecastViewBtnGroup button').forEach(btn => {
                 btn.addEventListener('click', function() {
@@ -2611,9 +2646,12 @@
         }
 
         async function switchBondType(type) {
+            if (!bondConfigByKey[type]) return;
             if (type === currentBondType) return;
 
             // 保存当前 dataStore
+            const previousBondType = currentBondType;
+            const previousDataStore = dataStore;
             dataStores[currentBondType] = dataStore;
 
             // 懒加载目标数据
@@ -2643,6 +2681,16 @@
                 allTerms = dataStore.allTerms || getAllTerms(dataStore.latestRates);
             }
 
+            if (!dataStores[type]) {
+                currentBondType = previousBondType;
+                dataStore = previousDataStore;
+                const statusEl = document.getElementById('uploadStatus');
+                statusEl.textContent = '暂未找到' + bondNames[type] + '数据，请先运行 GitHub Actions 更新数据';
+                statusEl.style.color = '#c0392b';
+                updateBondTypeUI();
+                return;
+            }
+
             currentBondType = type;
             selectedDate = dataStore ? dataStore.latestDate : null;
             forecastRefDate = null;
@@ -2662,7 +2710,7 @@
             document.title = name + ' · 利率曲线分析';
             document.getElementById('mainTitle').textContent = '📈 ' + name + ' · 利率曲线分析';
             document.querySelectorAll('.bond-name').forEach(el => {
-                el.textContent = '📊 中债' + name + '利率曲线';
+                el.textContent = '📊 ' + name + '利率曲线';
             });
         }
 
@@ -2673,13 +2721,12 @@
                 const summary = await resp.json();
                 if (!summary || !summary.curves) return;
 
-                const order = ['gov_spot', 'gov_ytm', 'cdb_spot', 'cdb_ytm'];
+                const order = BOND_KEYS;
                 const grid = document.getElementById('dashGrid');
                 grid.innerHTML = '';
 
                 for (const key of order) {
-                    const c = summary.curves[key];
-                    if (!c) continue;
+                    const c = summary.curves[key] || { name: bondNames[key], date: '暂无数据', terms: {} };
                     const card = document.createElement('div');
                     card.className = 'dash-card' + (key === currentBondType ? ' active' : '');
                     card.dataset.bond = key;
