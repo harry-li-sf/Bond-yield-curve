@@ -935,6 +935,23 @@
             return { min, max };
         }
 
+        function optimizeChartOption(option) {
+            option.animation = false;
+            option.animationDuration = 0;
+            option.animationDurationUpdate = 0;
+            option.stateAnimation = { duration: 0 };
+            return option;
+        }
+
+        function lightweightTooltip(config) {
+            const axisPointer = Object.assign({ animation: false }, config.axisPointer || {});
+            return Object.assign({}, config, {
+                triggerOn: 'click',
+                transitionDuration: 0,
+                axisPointer
+            });
+        }
+
         // ================================================================
         // 渲染函数
         // ================================================================
@@ -1035,7 +1052,7 @@
             const option = {
                 title: { text: '中债' + bondName() + '利率曲线 - ' + targetDate, left: 'center', top: 0, textStyle: { fontSize: 14,
                         fontWeight: 'normal' } },
-                tooltip: {
+                tooltip: lightweightTooltip({
                     trigger: 'axis',
                     formatter: function(params) {
                         let s = '期限: ' + params[0].axisValue + '年<br/>';
@@ -1046,7 +1063,7 @@
                         }
                         return s;
                     }
-                },
+                }),
                 legend: { data: ['所选日期', '所选750平均', '上月末', '上月末750平均', '上年末', '上年末750平均'], top: 30, right: 10,
                     textStyle: { fontSize: 11 } },
                 grid: { left: 50, right: 20, top: 70, bottom: 60 },
@@ -1126,7 +1143,7 @@
                     itemStyle: { color: '#922b21' }
                 }]
             };
-            chart.setOption(option, true);
+            chart.setOption(optimizeChartOption(option), true);
             chart.resize();
         }
 
@@ -1296,7 +1313,7 @@
                 const option = {
                     title: { text: `${forecastPeriod}日移动平均利率预测 (基准日 ${forecastRefDate || dataStore.latestDate}，平推至${Math.ceil(forecastPeriod/250)}年后)`, left: 'center', top: 0, textStyle: { fontSize: 14,
                             fontWeight: 'normal' } },
-                    tooltip: {
+                    tooltip: lightweightTooltip({
                         trigger: 'axis',
                         formatter: function(params) {
                             let s = params[0].axisValue + '<br/>';
@@ -1307,7 +1324,7 @@
                             }
                             return s;
                         }
-                    },
+                    }),
                     legend: { data: displayTerms, top: 30, right: 10, textStyle: { fontSize: 11 } },
                     grid: { left: 50, right: 20, top: 70, bottom: 70 },
                     xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 10, rotate: 30, interval: Math.floor(
@@ -1331,14 +1348,15 @@
                         name: s.name,
                         type: 'line',
                         data: s.data,
-                        smooth: true,
+                        smooth: false,
                         symbol: 'none',
+                        sampling: 'lttb',
                         lineStyle: { width: 2.5, color: colors[idx % colors.length] },
                         itemStyle: { color: colors[idx % colors.length] },
                         connectNulls: false
                     }))
                 };
-                chart.setOption(option, true);
+                chart.setOption(optimizeChartOption(option), true);
                 chart.resize();
                 document.getElementById('forecastFootnote').textContent = `预测从 ${forecastRefDate || dataStore.latestDate} 后一个交易日开始，不含基准日本身`;
                 if (isPlaying) stopPlayback();
@@ -1396,7 +1414,7 @@
                 const option = {
                     title: { text: `预测利率曲线快照 - ${selectedForecastDate} (基准日 ${refDate})`, left: 'center', top: 0,
                         textStyle: { fontSize: 14, fontWeight: 'normal' } },
-                    tooltip: {
+                    tooltip: lightweightTooltip({
                         trigger: 'axis',
                         formatter: function(params) {
                             let s = '期限: ' + params[0].axisValue + '年<br/>';
@@ -1407,7 +1425,7 @@
                             }
                             return s;
                         }
-                    },
+                    }),
                     legend: { data: ['预测曲线', '当前实际曲线'], top: 30, right: 10, textStyle: { fontSize: 11 } },
                     grid: { left: 50, right: 20, top: 70, bottom: 30 },
                     xAxis: { type: 'category', data: termsNumeric, name: '期限 (年)', nameLocation: 'center',
@@ -1450,7 +1468,7 @@
                         itemStyle: { color: '#1f6fd9' }
                     }]
                 };
-                chart.setOption(option, true);
+                chart.setOption(optimizeChartOption(option), true);
                 chart.resize();
                 document.getElementById('forecastFootnote').textContent = `显示 ${selectedForecastDate} 的预测利率曲线，与基准日 ${refDate} 实际曲线对比`;
             }
@@ -1967,7 +1985,7 @@
                     type: 'line',
                     data: maData.map(d => d.value),
                     showSymbol: false,
-                    smooth: true,
+                    smooth: false,
                     lineStyle: { width: 2, color: color },
                     itemStyle: { color: color },
                     connectNulls: false
@@ -1985,8 +2003,8 @@
             if (min === Infinity) { min = 0; max = 5; }
             const padding = (max - min) * 0.1 || 0.5;
 
-            maTimeSeriesChart.setOption({
-                tooltip: { trigger: 'axis', axisPointer: { type: 'cross' },
+            maTimeSeriesChart.setOption(optimizeChartOption({
+                tooltip: lightweightTooltip({ trigger: 'axis', axisPointer: { type: 'cross' },
                     formatter: function(params) {
                         let s = params[0].axisValue + '<br/>';
                         for (const p of params) {
@@ -1994,7 +2012,7 @@
                         }
                         return s;
                     }
-                },
+                }),
                 legend: { top: 5, textStyle: { fontSize: 11 } },
                 grid: { left: 55, right: 20, top: 45, bottom: 70 },
                 xAxis: { type: 'category', data: dates,
@@ -2006,8 +2024,11 @@
                     min: min - padding, max: max + padding, boundaryGap: false
                 },
                 series: series,
-                dataZoom: [{ type: 'inside', start: 60, end: 100 }, { type: 'slider', start: 60, end: 100, height: 18, bottom: 8 }]
-            });
+                dataZoom: [
+                    { type: 'inside', start: 60, end: 100, realtime: false, throttle: 150 },
+                    { type: 'slider', start: 60, end: 100, height: 18, bottom: 8, realtime: false, throttle: 150 }
+                ]
+            }));
         }
 
         function renderMACurveChart() {
@@ -2068,8 +2089,8 @@
             if (min === Infinity) { min = 0; max = 5; }
             const padding = (max - min) * 0.1 || 0.5;
 
-            maCurveChartEcharts.setOption({
-                tooltip: { trigger: 'axis',
+            maCurveChartEcharts.setOption(optimizeChartOption({
+                tooltip: lightweightTooltip({ trigger: 'axis',
                     formatter: function(params) {
                         let s = '期限: ' + params[0].axisValue + '<br/>';
                         for (const p of params) {
@@ -2077,7 +2098,7 @@
                         }
                         return s;
                     }
-                },
+                }),
                 legend: { top: 5, textStyle: { fontSize: 11 } },
                 grid: { left: 55, right: 20, top: 45, bottom: 70 },
                 xAxis: { type: 'category', data: termsLabels,
@@ -2089,7 +2110,7 @@
                     min: min - padding, max: max + padding, boundaryGap: false
                 },
                 series: series
-            });
+            }));
         }
 
         function downloadMACurveExcel() {
