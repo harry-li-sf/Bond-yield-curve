@@ -32,6 +32,7 @@
 - `data_local_gov_ytm.json` 直接来自中债登 `searchYc`，`qxll=0`。
 - `data_local_gov_spot.json` 用中债登地方政府债到期收益率，通过年付息平价债 bootstrap 方法推导即期收益率。
 - 该方法来自 `example/README_中债收益率曲线抓取.md` 和 `example/bootstrap_spot.py`。
+- 地方政府债必须单独请求；如果把它和其他 `ycDefIds` 拼成一次批量请求，中债登可能只返回地方政府债并导致其他到期曲线缺失或错位。
 
 ## 主要文件
 
