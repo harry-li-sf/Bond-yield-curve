@@ -22,6 +22,7 @@ import requests
 
 SEARCHYC_URL = "https://yield.chinabond.com.cn/cbweb-mn/yc/searchYc"
 SUMMARY_FILE = "summary.json"
+DATA_SCHEMA_VERSION = 2
 START_DATE = "2020-01-02"
 SUMMARY_TERMS = ["1Y", "5Y", "10Y", "20Y", "30Y"]
 BJ_TZ = timezone(timedelta(hours=8))
@@ -65,6 +66,24 @@ class DatasetConfig:
     @property
     def is_bootstrapped(self) -> bool:
         return self.rate_type == "spot" and not self.curve.has_official_spot
+
+    @property
+    def meta(self) -> dict:
+        return {
+            "schemaVersion": DATA_SCHEMA_VERSION,
+            "dataset": self.key,
+            "ycDefId": self.curve.yc_def_id,
+            "rateType": self.rate_type,
+            "maxYear": self.curve.max_year,
+        }
+
+    @property
+    def is_legacy_file(self) -> bool:
+        return self.key in LEGACY_FILENAMES
+
+    @property
+    def requires_isolated_fetch(self) -> bool:
+        return self.curve.key == "local_gov"
 
 
 CURVES = [
@@ -134,6 +153,20 @@ def next_fetch_date(existing: dict) -> str:
     if not dates:
         return START_DATE
     return (datetime.strptime(dates[-1], "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+def has_current_metadata(dataset: DatasetConfig, existing: dict) -> bool:
+    return existing.get("meta") == dataset.meta
+
+
+def next_fetch_date_for_dataset(dataset: DatasetConfig, existing: dict) -> str:
+    if not dataset.is_legacy_file and not has_current_metadata(dataset, existing):
+        return START_DATE
+    return next_fetch_date(existing)
+
+
+def empty_dataset(dataset: DatasetConfig) -> dict:
+    return {"dates": [], "terms": dataset.terms, "rows": [], "meta": dataset.meta}
 
 
 def load_existing(filepath: str, terms: Optional[List[str]] = None) -> dict:
@@ -277,7 +310,9 @@ def merge_rates(existing: dict, terms: List[str], rates_by_date: Dict[str, Dict[
 
 def update_dataset(dataset: DatasetConfig, today_str: str) -> bool:
     existing = load_existing(dataset.filename, dataset.terms)
-    start = next_fetch_date(existing)
+    start = next_fetch_date_for_dataset(dataset, existing)
+    if start == START_DATE and not dataset.is_legacy_file and not has_current_metadata(dataset, existing):
+        existing = empty_dataset(dataset)
     if start > today_str:
         return False
 
@@ -292,6 +327,7 @@ def update_dataset(dataset: DatasetConfig, today_str: str) -> bool:
         return False
 
     output = merge_rates(existing, dataset.terms, fetched)
+    output["meta"] = dataset.meta
     save_json(dataset.filename, output)
     return True
 
@@ -312,8 +348,17 @@ def dataset_needs_day(state: dict, day: str) -> bool:
 
 
 def update_all_datasets(today_str: str) -> Dict[str, bool]:
-    states = {dataset.key: load_existing(dataset.filename, dataset.terms) for dataset in ALL_DATASETS}
-    starts = [next_fetch_date(state) for state in states.values() if next_fetch_date(state) <= today_str]
+    states = {}
+    starts = []
+    for dataset in ALL_DATASETS:
+        state = load_existing(dataset.filename, dataset.terms)
+        start = next_fetch_date_for_dataset(dataset, state)
+        if start == START_DATE and not dataset.is_legacy_file and not has_current_metadata(dataset, state):
+            state = empty_dataset(dataset)
+        states[dataset.key] = state
+        if start <= today_str:
+            starts.append(start)
+
     if not starts:
         return {dataset.key: False for dataset in ALL_DATASETS}
 
@@ -328,7 +373,11 @@ def update_all_datasets(today_str: str) -> Dict[str, bool]:
 
         spot_curves = []
         ytm_curves = []
+        isolated = []
         for dataset in pending:
+            if dataset.requires_isolated_fetch:
+                isolated.append(dataset)
+                continue
             if dataset.is_bootstrapped or dataset.rate_type == "ytm":
                 if dataset.curve not in ytm_curves:
                     ytm_curves.append(dataset.curve)
@@ -336,10 +385,10 @@ def update_all_datasets(today_str: str) -> Dict[str, bool]:
                 if dataset.curve not in spot_curves:
                     spot_curves.append(dataset.curve)
 
-        spot_results = fetch_searchyc_bundle(spot_curves, "1", day)
-        ytm_results = fetch_searchyc_bundle(ytm_curves, "0", day)
+        spot_results = fetch_searchyc_bundle(spot_curves, "1", day) if spot_curves else {}
+        ytm_results = fetch_searchyc_bundle(ytm_curves, "0", day) if ytm_curves else {}
 
-        for dataset in pending:
+        for dataset in [d for d in pending if not d.requires_isolated_fetch]:
             rates: Dict[str, float] = {}
             if dataset.is_bootstrapped:
                 ytm = ytm_results.get(dataset.curve.key, {})
@@ -354,9 +403,23 @@ def update_all_datasets(today_str: str) -> Dict[str, bool]:
                 changed[dataset.key] = True
                 print(f"  {day} {dataset.display_name}: {len(rates)} terms")
 
+        isolated_cache: Dict[tuple, Dict[str, float]] = {}
+        for dataset in isolated:
+            cache_qxll = "0" if dataset.is_bootstrapped else dataset.qxll
+            cache_key = (dataset.curve.key, cache_qxll)
+            if cache_key not in isolated_cache:
+                isolated_cache[cache_key] = fetch_searchyc_bundle([dataset.curve], cache_qxll, day).get(dataset.curve.key, {})
+            raw_rates = isolated_cache[cache_key]
+            rates = bootstrap_spot_from_ytm(raw_rates) if dataset.is_bootstrapped and raw_rates else raw_rates
+            if rates:
+                append_dataset_day(states, dataset, day, rates)
+                changed[dataset.key] = True
+                print(f"  {day} {dataset.display_name}: {len(rates)} terms")
+
     for dataset in ALL_DATASETS:
         state = states[dataset.key]
         state["terms"] = dataset.terms
+        state["meta"] = dataset.meta
         save_json(dataset.filename, state)
 
     return changed
@@ -381,6 +444,8 @@ def generate_summary():
 
     for dataset in ALL_DATASETS:
         data = load_existing(dataset.filename, dataset.terms)
+        if not dataset.is_legacy_file and not has_current_metadata(dataset, data):
+            continue
         if not data["dates"] or not data["rows"]:
             continue
         latest_date = data["dates"][-1]
