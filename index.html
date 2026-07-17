@@ -169,12 +169,30 @@
         .ma-chip .remove { cursor: pointer; font-weight: bold; opacity: 0.6; }
         .ma-chip .remove:hover { opacity: 1; }
         .ma-legend-dot { display: inline-block; width: 10px; height: 3px; border-radius: 2px; vertical-align: middle; }
+        .section-toggle { display: inline-flex; gap: 3px; background: #e8eef6; border-radius: 12px; padding: 3px; }
+        .section-toggle button { border: none; background: transparent; padding: 5px 14px; border-radius: 9px; font-size: 13px; font-weight: 600; color: #375472; cursor: pointer; white-space: nowrap; }
+        .section-toggle button.active { background: #102a43; color: #fff; box-shadow: 0 1px 5px rgba(0,0,0,0.16); }
+        .premium-toolbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 14px; background: #f6faff; border: 1px solid #dfe9f5; border-radius: 10px; margin-bottom: 14px; }
+        .premium-toolbar label { font-size: 13px; font-weight: 600; color: #385574; }
+        .premium-toolbar select { padding: 5px 8px; border-radius: 7px; border: 1px solid #c7d5e5; background: #fff; font-size: 13px; }
+        .premium-btn-group { display: inline-flex; flex-wrap: wrap; gap: 4px; background: #e8eef6; border-radius: 12px; padding: 3px; }
+        .premium-btn-group button { border: none; background: transparent; color: #375472; padding: 5px 10px; border-radius: 9px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .premium-btn-group button.active { background: #1f4a7a; color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.14); }
+        .premium-summary { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .premium-summary-item { background: #f8fbff; border: 1px solid #e0e9f2; border-radius: 10px; padding: 12px; }
+        .premium-summary-label { color: #6b7c96; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
+        .premium-summary-value { color: #102a43; font-size: 20px; font-weight: 800; font-family: 'SF Mono', 'Consolas', monospace; }
+        @media (max-width: 768px) { .premium-summary { grid-template-columns: repeat(2, 1fr); } }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header-card">
             <h1 id="mainTitle">📈 利率曲线监测及分析报告</h1>
+            <div class="section-toggle" id="sectionToggle">
+                <button class="active" data-section="base">基础评估曲线</button>
+                <button data-section="premium">溢价评估利率</button>
+            </div>
             <div class="bond-toggle" id="bondToggle">
                 <button class="active" data-bond="gov_spot">国债即期</button>
                 <button data-bond="gov_ytm">国债到期</button>
@@ -378,6 +396,58 @@
             </div>
         </div>
         </div><!-- /view-detail -->
+
+        <div class="view-premium" id="viewPremium" style="display:none;">
+            <div class="card">
+                <div class="card-title">
+                    <span>寿险合同负债评估折现率曲线</span>
+                    <span class="badge">750日国债即期均值 + 综合溢价</span>
+                    <button class="btn-download" id="lifeDownloadBtn" style="font-size:11px;padding:3px 12px;">导出XLSX</button>
+                </div>
+                <div class="premium-toolbar">
+                    <label for="lifeDateSelect">评估日期</label>
+                    <select id="lifeDateSelect"></select>
+                    <label>业务类型</label>
+                    <div class="premium-btn-group" id="lifeTierGroup"></div>
+                    <label>曲线</label>
+                    <div class="premium-btn-group" id="lifeCurveTypeGroup">
+                        <button class="active" data-curve-type="spot">即期折现率</button>
+                        <button data-curve-type="forward">远期折现率</button>
+                    </div>
+                </div>
+                <div class="premium-summary" id="lifeSummary"></div>
+                <div class="grid-2">
+                    <div class="card" style="box-shadow:none;border-color:#e5edf6;">
+                        <div class="card-title">
+                            <span>期限结构</span>
+                            <span class="badge" id="lifeChartBadge">即期折现率</span>
+                        </div>
+                        <div class="chart-box tall" id="lifeDiscountChart"></div>
+                        <div class="footnote">基础利率为750日移动平均中债国债即期收益率曲线；20-40年按监管附件公式过渡至4.5%终极利率。</div>
+                    </div>
+                    <div class="card" style="box-shadow:none;border-color:#e5edf6;">
+                        <div class="card-title">
+                            <span>关键期限</span>
+                            <span class="badge">基础利率 / 即期 / 远期</span>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>期限</th>
+                                        <th>基础利率(%)</th>
+                                        <th>即期折现率(%)</th>
+                                        <th>远期折现率(%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lifeKeyBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="footnote">远期折现率按 F_t=((1+S_t)^t/(1+S_{t-1})^(t-1))-1 由年度即期折现率换算。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -565,6 +635,12 @@
         const FORECAST_PERIODS = [250, 500, 750, 2500];
         let curveChart = null,
             forecastChart = null;
+        let activeSection = 'base';
+        let lifeDiscountData = null;
+        let lifeDiscountChart = null;
+        let lifeSelectedDate = null;
+        let lifeSelectedTier = 'other_products';
+        let lifeCurveType = 'spot';
         let isPlaying = false;
         let playTimer = null;
         let playIndex = 0;
@@ -2471,16 +2547,166 @@
         // ================================================================
         // 视图切换：总览 ↔ 详情
         // ================================================================
+        async function loadLifeDiscountData() {
+            if (lifeDiscountData) return lifeDiscountData;
+            const resp = await fetch('life_discount.json?' + Date.now(), { cache: 'no-store' });
+            if (!resp.ok) throw new Error('life_discount.json HTTP ' + resp.status);
+            const raw = await resp.json();
+            if (!raw || !raw.dates || !raw.dates.length || !raw.curves) throw new Error('life_discount.json 数据为空');
+            lifeDiscountData = raw;
+            lifeSelectedDate = raw.dates[raw.dates.length - 1];
+            const defaultTier = raw.tiers.find(t => t.key === 'other_products') || raw.tiers[0];
+            lifeSelectedTier = defaultTier.key;
+            return lifeDiscountData;
+        }
+
+        function setSectionUI(section) {
+            activeSection = section;
+            document.querySelectorAll('#sectionToggle button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.section === section);
+            });
+            const bondToggle = document.getElementById('bondToggle');
+            if (bondToggle) bondToggle.style.display = section === 'base' ? 'inline-flex' : 'none';
+        }
+
+        async function showPremiumSection() {
+            setSectionUI('premium');
+            document.getElementById('viewOverview').style.display = 'none';
+            document.getElementById('viewDetail').style.display = 'none';
+            document.getElementById('viewPremium').style.display = '';
+            document.querySelector('.container').classList.remove('overview-mode');
+            document.title = '溢价评估利率 · 寿险合同负债评估折现率曲线';
+            document.getElementById('mainTitle').textContent = '溢价评估利率 · 寿险合同负债评估折现率曲线';
+            history.replaceState(null, '', '#premium');
+            try {
+                await loadLifeDiscountData();
+                renderLifeControls();
+                renderLifeDiscountView();
+            } catch (e) {
+                document.getElementById('viewPremium').innerHTML = '<div class="card"><div class="loading-overlay"><p>暂无溢价评估利率数据</p><p style="font-size:12px;color:#888;">请先运行 GitHub Actions 生成 life_discount.json</p></div></div>';
+                console.error(e);
+            }
+        }
+
+        function renderLifeControls() {
+            if (!lifeDiscountData) return;
+            const dateSelect = document.getElementById('lifeDateSelect');
+            if (dateSelect && dateSelect.options.length === 0) {
+                for (let i = lifeDiscountData.dates.length - 1; i >= 0; i--) {
+                    const d = lifeDiscountData.dates[i];
+                    const opt = document.createElement('option');
+                    opt.value = d;
+                    opt.textContent = d;
+                    dateSelect.appendChild(opt);
+                }
+                dateSelect.value = lifeSelectedDate;
+            }
+            const tierGroup = document.getElementById('lifeTierGroup');
+            if (tierGroup && tierGroup.children.length === 0) {
+                for (const tier of lifeDiscountData.tiers) {
+                    const btn = document.createElement('button');
+                    btn.dataset.tier = tier.key;
+                    btn.textContent = tier.name;
+                    btn.className = tier.key === lifeSelectedTier ? 'active' : '';
+                    tierGroup.appendChild(btn);
+                }
+            }
+        }
+
+        function lifeRowAt(rows, idx) {
+            return rows && idx >= 0 && idx < rows.length ? rows[idx] : [];
+        }
+
+        function lifeValue(row, term) {
+            const idx = lifeDiscountData.terms.indexOf(term);
+            return idx >= 0 && idx < row.length ? row[idx] : null;
+        }
+
+        function renderLifeDiscountView() {
+            if (!lifeDiscountData) return;
+            const dateIdx = lifeDiscountData.dates.indexOf(lifeSelectedDate);
+            const tier = lifeDiscountData.tiers.find(t => t.key === lifeSelectedTier) || lifeDiscountData.tiers[0];
+            const tierData = lifeDiscountData.curves[tier.key];
+            if (dateIdx < 0 || !tierData) return;
+
+            const baseRow = lifeRowAt(lifeDiscountData.baseRows, dateIdx);
+            const spotRow = lifeRowAt(tierData.spotRows, dateIdx);
+            const forwardRow = lifeRowAt(tierData.forwardRows, dateIdx);
+            const selectedRow = lifeCurveType === 'forward' ? forwardRow : spotRow;
+            const terms = lifeDiscountData.terms;
+            const x = terms.map(t => parseFloat(t));
+            const selectedName = lifeCurveType === 'forward' ? '远期折现率' : '即期折现率';
+
+            document.querySelectorAll('#lifeTierGroup button').forEach(btn => btn.classList.toggle('active', btn.dataset.tier === lifeSelectedTier));
+            document.querySelectorAll('#lifeCurveTypeGroup button').forEach(btn => btn.classList.toggle('active', btn.dataset.curveType === lifeCurveType));
+            const badge = document.getElementById('lifeChartBadge');
+            if (badge) badge.textContent = selectedName + ' · ' + tier.name;
+
+            const summaryTerms = ['1Y', '10Y', '20Y', '30Y'];
+            document.getElementById('lifeSummary').innerHTML = summaryTerms.map(term => {
+                const val = lifeValue(selectedRow, term);
+                return '<div class="premium-summary-item"><div class="premium-summary-label">' + term + ' ' + selectedName + '</div><div class="premium-summary-value">' + (val != null ? val.toFixed(4) + '%' : '—') + '</div></div>';
+            }).join('');
+
+            const keyTerms = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '40Y', '50Y'];
+            document.getElementById('lifeKeyBody').innerHTML = keyTerms.map(term => {
+                const base = lifeValue(baseRow, term);
+                const spot = lifeValue(spotRow, term);
+                const fwd = lifeValue(forwardRow, term);
+                return '<tr><td>' + term + '</td><td>' + (base != null ? base.toFixed(4) : '—') + '</td><td>' + (spot != null ? spot.toFixed(4) : '—') + '</td><td>' + (fwd != null ? fwd.toFixed(4) : '—') + '</td></tr>';
+            }).join('');
+
+            if (!lifeDiscountChart) lifeDiscountChart = echarts.init(document.getElementById('lifeDiscountChart'));
+            const series = [
+                { name: selectedName, type: 'line', data: x.map((year, i) => [year, selectedRow[i]]), showSymbol: false, smooth: false, lineStyle: { width: 3, color: '#1f4a7a' }, itemStyle: { color: '#1f4a7a' } }
+            ];
+            if (lifeCurveType === 'spot') {
+                series.push({ name: '基础利率', type: 'line', data: x.map((year, i) => [year, baseRow[i]]), showSymbol: false, smooth: false, lineStyle: { width: 2, color: '#7a8ea8', type: 'dashed' }, itemStyle: { color: '#7a8ea8' } });
+            }
+            lifeDiscountChart.setOption(optimizeChartOption({
+                tooltip: lightweightTooltip({ trigger: 'axis', formatter: function(params) {
+                    let s = params[0].axisValue + 'Y<br/>';
+                    for (const p of params) if (p.value && p.value[1] != null) s += p.marker + ' ' + p.seriesName + ': ' + p.value[1].toFixed(4) + '%<br/>';
+                    return s;
+                }}),
+                legend: { top: 6 },
+                grid: { left: 55, right: 25, top: 45, bottom: 45 },
+                xAxis: { type: 'value', name: '期限(年)', min: 1, max: 50 },
+                yAxis: { type: 'value', name: '利率(%)', axisLabel: { formatter: v => v.toFixed(2) + '%' } },
+                series
+            }), true);
+        }
+
+        function downloadLifeDiscountExcel() {
+            if (!lifeDiscountData) return;
+            const dateIdx = lifeDiscountData.dates.indexOf(lifeSelectedDate);
+            const tier = lifeDiscountData.tiers.find(t => t.key === lifeSelectedTier) || lifeDiscountData.tiers[0];
+            const tierData = lifeDiscountData.curves[tier.key];
+            const baseRow = lifeRowAt(lifeDiscountData.baseRows, dateIdx);
+            const spotRow = lifeRowAt(tierData.spotRows, dateIdx);
+            const forwardRow = lifeRowAt(tierData.forwardRows, dateIdx);
+            const rows = [['日期', lifeSelectedDate], ['业务类型', tier.name], [], ['期限', '基础利率(%)', '即期折现率(%)', '远期折现率(%)']];
+            for (let i = 0; i < lifeDiscountData.terms.length; i++) rows.push([lifeDiscountData.terms[i], baseRow[i], spotRow[i], forwardRow[i]]);
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            XLSX.utils.book_append_sheet(wb, ws, '溢价评估利率');
+            XLSX.writeFile(wb, '寿险合同负债评估折现率_' + lifeSelectedDate + '_' + tier.key + '.xlsx');
+        }
+
         function showOverview() {
+            setSectionUI('base');
             document.getElementById('viewOverview').style.display = '';
             document.getElementById('viewDetail').style.display = 'none';
+            document.getElementById('viewPremium').style.display = 'none';
             document.querySelector('.container').classList.add('overview-mode');
             if (location.hash) history.replaceState(null, '', location.pathname);
         }
 
         async function showDetail(type) {
+            setSectionUI('base');
             document.getElementById('viewOverview').style.display = 'none';
             document.getElementById('viewDetail').style.display = '';
+            document.getElementById('viewPremium').style.display = 'none';
             document.querySelector('.container').classList.remove('overview-mode');
             // 触发图表 resize
             setTimeout(() => {
@@ -2503,7 +2729,9 @@
 
         function handleHashChange() {
             const hash = location.hash.replace('#', '');
-            if (BOND_KEYS.includes(hash)) {
+            if (hash === 'premium') {
+                showPremiumSection();
+            } else if (BOND_KEYS.includes(hash)) {
                 showDetail(hash);
             } else {
                 showOverview();
@@ -2515,6 +2743,27 @@
         // ================================================================
         function setupEventListeners() {
             renderBondToggleButtons();
+            document.querySelectorAll('#sectionToggle button').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    if (this.dataset.section === 'premium') showPremiumSection();
+                    else showOverview();
+                });
+            });
+            document.getElementById('lifeDateSelect').addEventListener('change', function() {
+                lifeSelectedDate = this.value;
+                renderLifeDiscountView();
+            });
+            document.getElementById('lifeTierGroup').addEventListener('click', function(e) {
+                if (!e.target || !e.target.dataset.tier) return;
+                lifeSelectedTier = e.target.dataset.tier;
+                renderLifeDiscountView();
+            });
+            document.getElementById('lifeCurveTypeGroup').addEventListener('click', function(e) {
+                if (!e.target || !e.target.dataset.curveType) return;
+                lifeCurveType = e.target.dataset.curveType;
+                renderLifeDiscountView();
+            });
+            document.getElementById('lifeDownloadBtn').addEventListener('click', downloadLifeDiscountExcel);
             // 视图切换
             document.querySelectorAll('#forecastViewBtnGroup button').forEach(btn => {
                 btn.addEventListener('click', function() {
