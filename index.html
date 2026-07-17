@@ -8,6 +8,8 @@
     </script>
     <script src="assets/xlsx.full.min.js">
     </script>
+    <script src="preset_model_data.js">
+    </script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Roboto, system-ui, sans-serif; background: #f0f4f8; padding: 20px; color: #1a2332; }
@@ -182,6 +184,18 @@
         .premium-summary-item { background: #f8fbff; border: 1px solid #e0e9f2; border-radius: 10px; padding: 12px; }
         .premium-summary-label { color: #6b7c96; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
         .premium-summary-value { color: #102a43; font-size: 20px; font-weight: 800; font-family: 'SF Mono', 'Consolas', monospace; }
+        .preset-toolbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 14px; background: #f6faff; border: 1px solid #dfe9f5; border-radius: 10px; margin-bottom: 14px; }
+        .preset-toolbar label { font-size: 13px; font-weight: 600; color: #385574; }
+        .preset-summary { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .preset-summary-item { background: #f8fbff; border: 1px solid #e0e9f2; border-radius: 10px; padding: 12px; min-height: 96px; }
+        .preset-summary-label { color: #6b7c96; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+        .preset-summary-value { color: #102a43; font-size: 24px; font-weight: 800; font-family: 'SF Mono', 'Consolas', monospace; line-height: 1.1; }
+        .preset-summary-sub { margin-top: 7px; color: #748197; font-size: 12px; line-height: 1.4; }
+        .preset-notice { margin-bottom: 14px; padding: 10px 14px; border: 1px solid #f0d69c; border-radius: 8px; color: #6f520d; background: #fff8e5; font-size: 13px; }
+        .preset-formula { display: grid; gap: 10px; color: #304259; font-size: 13px; line-height: 1.6; }
+        .preset-formula code { display: block; padding: 10px; white-space: normal; color: #163a5d; background: #f0f5fb; border: 1px solid #dce8f5; border-radius: 6px; font-family: Consolas, 'Microsoft YaHei', monospace; }
+        @media (max-width: 980px) { .preset-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 560px) { .preset-summary { grid-template-columns: 1fr; } }
         @media (max-width: 768px) { .premium-summary { grid-template-columns: repeat(2, 1fr); } }
     </style>
 </head>
@@ -192,6 +206,7 @@
             <div class="section-toggle" id="sectionToggle">
                 <button class="active" data-section="base">基础评估曲线</button>
                 <button data-section="premium">溢价评估利率</button>
+                <button data-section="preset">预定利率研究值</button>
             </div>
             <div class="bond-toggle" id="bondToggle">
                 <button class="active" data-bond="gov_spot">国债即期</button>
@@ -448,6 +463,69 @@
                 </div>
             </div>
         </div>
+
+        <div class="view-preset" id="viewPreset" style="display:none;">
+            <div class="card">
+                <div class="card-title">
+                    <span>预定利率研究值模型</span>
+                    <span class="badge" id="presetUpdatedAt">等待数据更新</span>
+                    <button class="btn-download" id="presetExportBtn" style="font-size:11px;padding:3px 12px;">导出XLSX</button>
+                </div>
+                <div class="preset-notice" id="presetNotice" style="display:none;"></div>
+                <div class="preset-toolbar">
+                    <label>政策性金融债代表口径</label>
+                    <div class="premium-btn-group" id="presetPolicyGroup">
+                        <button class="active" data-policy="mean">三者均值</button>
+                        <button data-policy="cdb">国开债</button>
+                        <button data-policy="adb">农发行债</button>
+                        <button data-policy="exim">进出口行债</button>
+                    </div>
+                </div>
+                <div class="preset-summary" id="presetSummary"></div>
+                <div class="grid-2">
+                    <div class="card" style="box-shadow:none;border-color:#e5edf6;">
+                        <div class="card-title">
+                            <span>历史走势</span>
+                            <span class="badge" id="presetChartBadge">三者均值</span>
+                        </div>
+                        <div class="chart-box tall" id="presetModelChart"></div>
+                    </div>
+                    <div class="card" style="box-shadow:none;border-color:#e5edf6;">
+                        <div class="card-title">
+                            <span>公式口径</span>
+                            <span class="badge">模型测算研究值</span>
+                        </div>
+                        <div class="preset-formula">
+                            <code>模型测算研究值 = MIN(负债端利率锚, 资产端回报（基础回报水平）)</code>
+                            <code>负债端利率锚 = MA6(5年期以上LPR + 六大行5年定存均值) / 2</code>
+                            <code>资产端回报（基础回报水平） = MIN(MA250(10年期政策性金融债到期收益率), MA750(10年期政策性金融债到期收益率))</code>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="box-shadow:none;border-color:#e5edf6;margin-top:16px;">
+                    <div class="card-title">
+                        <span>协会实际研究值对照</span>
+                        <span class="badge">实际值 / 模型值 / 差异BP</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>季度</th>
+                                    <th>基准日</th>
+                                    <th>协会实际值</th>
+                                    <th>模型测算值</th>
+                                    <th>负债端利率锚</th>
+                                    <th>资产端回报</th>
+                                    <th>实际-模型</th>
+                                </tr>
+                            </thead>
+                            <tbody id="presetCalibrationBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -641,6 +719,9 @@
         let lifeSelectedDate = null;
         let lifeSelectedTier = 'other_products';
         let lifeCurveType = 'spot';
+        let presetModelData = null;
+        let presetModelChart = null;
+        let presetPolicy = 'mean';
         let isPlaying = false;
         let playTimer = null;
         let playIndex = 0;
@@ -2574,6 +2655,7 @@
             document.getElementById('viewOverview').style.display = 'none';
             document.getElementById('viewDetail').style.display = 'none';
             document.getElementById('viewPremium').style.display = '';
+            document.getElementById('viewPreset').style.display = 'none';
             document.querySelector('.container').classList.remove('overview-mode');
             document.title = '溢价评估利率 · 寿险合同负债评估折现率曲线';
             document.getElementById('mainTitle').textContent = '溢价评估利率 · 寿险合同负债评估折现率曲线';
@@ -2693,11 +2775,213 @@
             XLSX.writeFile(wb, '寿险合同负债评估折现率_' + lifeSelectedDate + '_' + tier.key + '.xlsx');
         }
 
+        const PRESET_POLICY_NAMES = { mean: '三者均值', cdb: '国开债', adb: '农发行债', exim: '进出口行债' };
+        const PRESET_POLICY_FIELD = { mean: 'policy10yMean', cdb: 'cdb10yYtm', adb: 'adb10yYtm', exim: 'exim10yYtm' };
+        const PRESET_ASSET_FIELD = { mean: 'assetBaseReturn_mean', cdb: 'assetBaseReturn_cdb', adb: 'assetBaseReturn_adb', exim: 'assetBaseReturn_exim' };
+        const PRESET_MA250_FIELD = { mean: 'policy10yMa250_mean', cdb: 'policy10yMa250_cdb', adb: 'policy10yMa250_adb', exim: 'policy10yMa250_exim' };
+        const PRESET_MA750_FIELD = { mean: 'policy10yMa750_mean', cdb: 'policy10yMa750_cdb', adb: 'policy10yMa750_adb', exim: 'policy10yMa750_exim' };
+
+        function presetFinite(v) {
+            return typeof v === 'number' && Number.isFinite(v);
+        }
+
+        function presetPct(v, digits = 2) {
+            return presetFinite(v) ? v.toFixed(digits) + '%' : '—';
+        }
+
+        function presetBp(v) {
+            return presetFinite(v) ? (v > 0 ? '+' : '') + v.toFixed(1) + 'bp' : '—';
+        }
+
+        function presetExportValue(v) {
+            return presetFinite(v) ? Number(v.toFixed(6)) : '';
+        }
+
+        function loadPresetModelData() {
+            const raw = window.PRESET_MODEL_DATA;
+            if (!raw || !Array.isArray(raw.series) || raw.series.length === 0) {
+                throw new Error('preset_model_data.js 数据为空');
+            }
+            presetModelData = raw;
+            return presetModelData;
+        }
+
+        function presetComputedModel(row) {
+            if (!row) return null;
+            const liability = row.liabilityAnchor;
+            const asset = row[PRESET_ASSET_FIELD[presetPolicy]];
+            if (!presetFinite(liability) || !presetFinite(asset)) return null;
+            return Math.min(liability, asset);
+        }
+
+        function presetLatestUsableRow(rows) {
+            for (let i = rows.length - 1; i >= 0; i--) {
+                const row = rows[i];
+                if (presetFinite(row.liabilityAnchor) && presetFinite(row[PRESET_ASSET_FIELD[presetPolicy]])) return row;
+            }
+            return rows[rows.length - 1] || null;
+        }
+
+        function presetNearestRow(date) {
+            const rows = presetModelData?.series || [];
+            let found = null;
+            for (const row of rows) {
+                if (row.date <= date) found = row;
+                else break;
+            }
+            return found;
+        }
+
+        function showPresetSection() {
+            setSectionUI('preset');
+            document.getElementById('viewOverview').style.display = 'none';
+            document.getElementById('viewDetail').style.display = 'none';
+            document.getElementById('viewPremium').style.display = 'none';
+            document.getElementById('viewPreset').style.display = '';
+            document.querySelector('.container').classList.remove('overview-mode');
+            document.title = '预定利率研究值 · 模型测算';
+            document.getElementById('mainTitle').textContent = '预定利率研究值 · 模型测算';
+            history.replaceState(null, '', '#preset');
+            try {
+                loadPresetModelData();
+                renderPresetModelView();
+            } catch (e) {
+                document.getElementById('presetNotice').style.display = 'block';
+                document.getElementById('presetNotice').textContent = '暂无预定利率研究值数据，请先运行 GitHub Actions 生成 preset_model_data.js';
+                console.error(e);
+            }
+        }
+
+        function renderPresetModelView() {
+            if (!presetModelData) return;
+            const rows = presetModelData.series || [];
+            const latest = presetLatestUsableRow(rows);
+            const model = presetComputedModel(latest);
+            const liability = latest ? latest.liabilityAnchor : null;
+            const asset = latest ? latest[PRESET_ASSET_FIELD[presetPolicy]] : null;
+            const policyValue = latest ? latest[PRESET_POLICY_FIELD[presetPolicy]] : null;
+            const binding = presetFinite(liability) && presetFinite(asset) ? (liability <= asset ? '负债端' : '资产端') : '—';
+
+            document.getElementById('presetUpdatedAt').textContent = presetModelData.updatedAt ? '数据更新：' + presetModelData.updatedAt : '等待数据更新';
+            document.getElementById('presetChartBadge').textContent = PRESET_POLICY_NAMES[presetPolicy];
+            document.querySelectorAll('#presetPolicyGroup button').forEach(btn => btn.classList.toggle('active', btn.dataset.policy === presetPolicy));
+
+            const warnings = presetModelData.warnings || [];
+            const notice = document.getElementById('presetNotice');
+            if (warnings.length) {
+                notice.style.display = 'block';
+                notice.textContent = '数据更新完成，有 ' + warnings.length + ' 条提示。首条：' + warnings[0];
+            } else {
+                notice.style.display = 'none';
+            }
+
+            const summary = [
+                ['模型测算研究值', presetPct(model), latest ? latest.date : '—'],
+                ['负债端利率锚', presetPct(liability), '6个月移动平均'],
+                ['资产端回报', presetPct(asset), 'MA250与MA750取低'],
+                ['触发约束', binding, '取两端较低者'],
+                ['最新政策债10Y', presetPct(policyValue), PRESET_POLICY_NAMES[presetPolicy]]
+            ];
+            document.getElementById('presetSummary').innerHTML = summary.map(item =>
+                '<div class="preset-summary-item"><div class="preset-summary-label">' + item[0] + '</div><div class="preset-summary-value">' + item[1] + '</div><div class="preset-summary-sub">' + item[2] + '</div></div>'
+            ).join('');
+
+            renderPresetModelChart(rows);
+            renderPresetCalibration();
+        }
+
+        function renderPresetModelChart(rows) {
+            if (!presetModelChart) presetModelChart = echarts.init(document.getElementById('presetModelChart'));
+            const dates = rows.map(r => r.date);
+            const modelSeries = rows.map(r => presetComputedModel(r));
+            const liabilitySeries = rows.map(r => r.liabilityAnchor);
+            const lprSeries = rows.map(r => r.lpr5y);
+            const depositSeries = rows.map(r => r.deposit5yMean);
+            const assetSeries = rows.map(r => r[PRESET_ASSET_FIELD[presetPolicy]]);
+            const ma250Series = rows.map(r => r[PRESET_MA250_FIELD[presetPolicy]]);
+            const ma750Series = rows.map(r => r[PRESET_MA750_FIELD[presetPolicy]]);
+            const policySeries = rows.map(r => r[PRESET_POLICY_FIELD[presetPolicy]]);
+            const actualSeries = rows.map(r => presetFinite(r.actualReferenceValue) ? r.actualReferenceValue : null);
+
+            presetModelChart.setOption(optimizeChartOption({
+                animation: false,
+                color: ['#1f5f99', '#cf3f4f', '#8b5e34', '#00a0a8', '#1f9d68', '#c98222', '#7a62c7', '#52667a', '#111827'],
+                tooltip: lightweightTooltip({ trigger: 'axis', valueFormatter: v => presetFinite(v) ? v.toFixed(4) + '%' : '—' }),
+                legend: { top: 0, type: 'scroll' },
+                grid: { left: 48, right: 20, top: 82, bottom: 48 },
+                xAxis: { type: 'category', data: dates, boundaryGap: false },
+                yAxis: { type: 'value', scale: true, axisLabel: { formatter: '{value}%' } },
+                dataZoom: [{ type: 'inside' }, { type: 'slider', height: 20, bottom: 8 }],
+                series: [
+                    { name: '模型测算研究值', type: 'line', showSymbol: false, data: modelSeries, lineStyle: { width: 2.4 } },
+                    { name: '负债端利率锚', type: 'line', showSymbol: false, data: liabilitySeries },
+                    { name: '5年期以上LPR', type: 'line', showSymbol: false, data: lprSeries, lineStyle: { type: 'dotted' } },
+                    { name: '六大行5年定存均值', type: 'line', showSymbol: false, data: depositSeries, lineStyle: { type: 'dotted' } },
+                    { name: '资产端回报（基础回报水平）', type: 'line', showSymbol: false, data: assetSeries, lineStyle: { width: 2.4 } },
+                    { name: 'MA250(10年期政策性金融债到期收益率)', type: 'line', showSymbol: false, data: ma250Series },
+                    { name: 'MA750(10年期政策性金融债到期收益率)', type: 'line', showSymbol: false, data: ma750Series },
+                    { name: '10年期政策性金融债到期收益率', type: 'line', showSymbol: false, data: policySeries, lineStyle: { type: 'dashed' } },
+                    { name: '协会实际值', type: 'scatter', symbolSize: 9, data: actualSeries, z: 3 }
+                ]
+            }), true);
+        }
+
+        function renderPresetCalibration() {
+            const actuals = presetModelData.actualValues || [];
+            const body = document.getElementById('presetCalibrationBody');
+            if (!actuals.length) {
+                body.innerHTML = '<tr><td colspan="7" style="color:#888;padding:20px;">暂无协会实际研究值维护表</td></tr>';
+                return;
+            }
+            body.innerHTML = actuals.map(item => {
+                const row = presetNearestRow(item.asOfDate);
+                const model = presetComputedModel(row);
+                const liability = row ? row.liabilityAnchor : null;
+                const asset = row ? row[PRESET_ASSET_FIELD[presetPolicy]] : null;
+                const diff = presetFinite(model) ? (item.value - model) * 100 : null;
+                return '<tr><td>' + item.quarter + '</td><td>' + item.asOfDate + '</td><td>' + presetPct(item.value) + '</td><td>' + presetPct(model) + '</td><td>' + presetPct(liability) + '</td><td>' + presetPct(asset) + '</td><td>' + presetBp(diff) + '</td></tr>';
+            }).join('');
+        }
+
+        function downloadPresetModelExcel() {
+            if (!presetModelData) return;
+            const headers = ['日期', '政策性金融债口径', '模型测算研究值', '负债端利率锚', '资产端回报（基础回报水平）', 'MA250(10年期政策性金融债到期收益率)', 'MA750(10年期政策性金融债到期收益率)', '10年期政策性金融债到期收益率', '协会实际值', '实际-模型(bp)', '5年期以上LPR', '六大行5年定存均值', '国债10Y', '国开债10Y', '农发行债10Y', '进出口行债10Y'];
+            const rows = [headers];
+            for (const row of presetModelData.series || []) {
+                const model = presetComputedModel(row);
+                const actual = row.actualReferenceValue;
+                const diff = presetFinite(model) && presetFinite(actual) ? (actual - model) * 100 : null;
+                rows.push([
+                    row.date,
+                    PRESET_POLICY_NAMES[presetPolicy],
+                    presetExportValue(model),
+                    presetExportValue(row.liabilityAnchor),
+                    presetExportValue(row[PRESET_ASSET_FIELD[presetPolicy]]),
+                    presetExportValue(row[PRESET_MA250_FIELD[presetPolicy]]),
+                    presetExportValue(row[PRESET_MA750_FIELD[presetPolicy]]),
+                    presetExportValue(row[PRESET_POLICY_FIELD[presetPolicy]]),
+                    presetExportValue(actual),
+                    presetExportValue(diff),
+                    presetExportValue(row.lpr5y),
+                    presetExportValue(row.deposit5yMean),
+                    presetExportValue(row.gov10yYtm),
+                    presetExportValue(row.cdb10yYtm),
+                    presetExportValue(row.adb10yYtm),
+                    presetExportValue(row.exim10yYtm)
+                ]);
+            }
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            XLSX.utils.book_append_sheet(wb, ws, '预定利率研究值');
+            XLSX.writeFile(wb, '预定利率研究值_' + PRESET_POLICY_NAMES[presetPolicy] + '_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+        }
+
         function showOverview() {
             setSectionUI('base');
             document.getElementById('viewOverview').style.display = '';
             document.getElementById('viewDetail').style.display = 'none';
             document.getElementById('viewPremium').style.display = 'none';
+            document.getElementById('viewPreset').style.display = 'none';
             document.querySelector('.container').classList.add('overview-mode');
             if (location.hash) history.replaceState(null, '', location.pathname);
         }
@@ -2707,6 +2991,7 @@
             document.getElementById('viewOverview').style.display = 'none';
             document.getElementById('viewDetail').style.display = '';
             document.getElementById('viewPremium').style.display = 'none';
+            document.getElementById('viewPreset').style.display = 'none';
             document.querySelector('.container').classList.remove('overview-mode');
             // 触发图表 resize
             setTimeout(() => {
@@ -2731,6 +3016,8 @@
             const hash = location.hash.replace('#', '');
             if (hash === 'premium') {
                 showPremiumSection();
+            } else if (hash === 'preset') {
+                showPresetSection();
             } else if (BOND_KEYS.includes(hash)) {
                 showDetail(hash);
             } else {
@@ -2746,6 +3033,7 @@
             document.querySelectorAll('#sectionToggle button').forEach(btn => {
                 btn.addEventListener('click', function() {
                     if (this.dataset.section === 'premium') showPremiumSection();
+                    else if (this.dataset.section === 'preset') showPresetSection();
                     else showOverview();
                 });
             });
@@ -2764,6 +3052,12 @@
                 renderLifeDiscountView();
             });
             document.getElementById('lifeDownloadBtn').addEventListener('click', downloadLifeDiscountExcel);
+            document.getElementById('presetPolicyGroup').addEventListener('click', function(e) {
+                if (!e.target || !e.target.dataset.policy) return;
+                presetPolicy = e.target.dataset.policy;
+                renderPresetModelView();
+            });
+            document.getElementById('presetExportBtn').addEventListener('click', downloadPresetModelExcel);
             // 视图切换
             document.querySelectorAll('#forecastViewBtnGroup button').forEach(btn => {
                 btn.addEventListener('click', function() {
@@ -2874,6 +3168,7 @@
                 if (forecastChart) forecastChart.resize();
                 if (maTimeSeriesChart) maTimeSeriesChart.resize();
                 if (maCurveChartEcharts) maCurveChartEcharts.resize();
+                if (presetModelChart) presetModelChart.resize();
             });
 
             // 显示隐藏的card触发图表resize（强制重绘）
