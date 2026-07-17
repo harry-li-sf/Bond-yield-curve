@@ -99,6 +99,43 @@ class LifeDiscountTests(unittest.TestCase):
         self.assertAlmostEqual(output["curves"]["other_products"]["spotRows"][0][0], 2.45, places=8)
 
 
+class PresetModelTests(unittest.TestCase):
+    def test_parses_external_model_data_and_rewrites_global_name(self):
+        source = (
+            'window.MODEL_DATA = {"updatedAt":"2026-07-17T13:50:24+08:00",'
+            '"series":[{"date":"2026-07-16","liabilityAnchor":2.4,'
+            '"assetBaseReturn_mean":1.914127,"modelReferenceValue":1.914127}],'
+            '"actualValues":[{"quarter":"2026Q2","asOfDate":"2026-03-31","value":1.93}],'
+            '"warnings":[]};'
+        )
+
+        data = ci_update.parse_preset_model_js(source)
+        script = ci_update.build_preset_model_script(data)
+
+        self.assertEqual(data["updatedAt"], "2026-07-17T13:50:24+08:00")
+        self.assertEqual(data["series"][0]["date"], "2026-07-16")
+        self.assertTrue(script.startswith("window.PRESET_MODEL_DATA = "))
+        self.assertIn('"modelReferenceValue":1.914127', script)
+        self.assertNotIn("window.MODEL_DATA", script)
+
+    def test_generate_preset_model_data_saves_valid_local_script(self):
+        source = (
+            'window.MODEL_DATA = {"updatedAt":"2026-07-17T13:50:24+08:00",'
+            '"series":[{"date":"2026-07-16","liabilityAnchor":2.4,'
+            '"assetBaseReturn_mean":1.914127,"modelReferenceValue":1.914127}],'
+            '"actualValues":[],"warnings":[]};'
+        )
+        saved = {}
+
+        with patch.object(ci_update, "fetch_preset_model_source", return_value=source), \
+             patch.object(ci_update, "save_text", side_effect=lambda path, text: saved.update({path: text})):
+            updated = ci_update.generate_preset_model_data()
+
+        self.assertTrue(updated)
+        self.assertIn(ci_update.PRESET_MODEL_FILE, saved)
+        self.assertIn("window.PRESET_MODEL_DATA", saved[ci_update.PRESET_MODEL_FILE])
+
+
 class UpdateTests(unittest.TestCase):
     def test_new_dataset_without_metadata_rebuilds_from_start_date(self):
         dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "rail_ytm")
