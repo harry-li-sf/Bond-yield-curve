@@ -56,12 +56,30 @@
 | 万能险、投资连结险、变额年金及中短存续期产品 | 30BP |
 | 其他产品 | 45BP |
 
+## 预定利率研究值
+
+网页新增了第三个独立板块 `预定利率研究值`。该板块不是 iframe 嵌入外部网页，而是读取仓库根目录下的本地文件 `preset_model_data.js`，在本站内原生渲染指标卡、历史走势图、公式口径和协会实际研究值对照表。
+
+`ci_update.py` 每次在 GitHub Actions 中运行时，会访问以下公开数据文件并转换成本项目使用的本地脚本：
+
+- 数据源页面：`https://hh9616.github.io/preset-rate-reference-model/`
+- 数据源文件：`https://hh9616.github.io/preset-rate-reference-model/data/model-data.js`
+- 本地文件：`preset_model_data.js`
+
+页面展示的模型口径与源页面保持一致：
+
+- 模型测算研究值 = `MIN(负债端利率锚, 资产端回报（基础回报水平）)`
+- 负债端利率锚 = `MA6(5年期以上LPR + 六大行5年定存均值) / 2`
+- 资产端回报（基础回报水平） = `MIN(MA250(10年期政策性金融债到期收益率), MA750(10年期政策性金融债到期收益率))`
+- 政策性金融债代表口径支持 `三者均值`、`国开债`、`农发行债`、`进出口行债` 切换。
+
 ## 主要文件
 
-- `index.html`：网页主程序，展示 18 组曲线、详情页、预测、历史表格、均线和导出。
-- `ci_update.py`：GitHub Actions 自动更新脚本，生成 18 个基础曲线数据 JSON、`summary.json` 和派生的 `life_discount.json`。
+- `index.html`：网页主程序，展示基础评估曲线、溢价评估利率、预定利率研究值和导出功能。
+- `ci_update.py`：GitHub Actions 自动更新脚本，生成 18 个基础曲线数据 JSON、`summary.json`、派生的 `life_discount.json` 和 `preset_model_data.js`。
 - `summary.json`：首页总览卡片使用的摘要数据，同时记录每组数据来源。
 - `life_discount.json`：寿险合同负债评估折现率曲线数据，由 `data.json` 派生，不单独访问外部网站。
+- `preset_model_data.js`：预定利率研究值板块数据，由 GitHub Actions 每日从公开模型数据源更新。
 - `requirements.txt`：Actions 安装依赖，目前只需要 `requests`。
 - `.github/workflows/update-data.yml`：自动抓取、提交数据并部署 GitHub Pages。
 - `assets/`：网页依赖的 ECharts 和 XLSX 本地文件。
@@ -91,9 +109,9 @@ http://localhost:8000/
 2. 逐个更新这些已有文件：`index.html`、`ci_update.py`、`README.md`、`requirements.txt`。
 3. 更新 `.github/workflows/update-data.yml`：在 GitHub 文件列表打开 `.github` -> `workflows` -> `update-data.yml`，点铅笔图标，把本地同名文件内容全部替换进去。
 4. 更新测试文件：`tests/test_ci_update.py` 和 `tests/test_workflow.py`。如果 GitHub 上没有对应文件，点 `Add file` -> `Create new file`，文件名填完整路径，例如 `tests/test_ci_update.py`。
-5. 上传或替换 `life_discount.json`。这个文件可以让网页立刻显示“溢价评估利率”；如果不手动上传，也可以等 GitHub Actions 跑完后自动生成。
+5. 上传或替换 `life_discount.json` 和 `preset_model_data.js`。这两个文件可以让网页立刻显示“溢价评估利率”和“预定利率研究值”；如果不手动上传，也可以等 GitHub Actions 跑完后自动生成。
 6. 不要上传 `example`、`.git`、`.agents`、`.tmp_pdf_pages`、`__pycache__`。
-7. 提交标题可以写：`add premium assessment discount curves`。
+7. 提交标题可以写：`add preset rate research section`。
 8. 提交后进入仓库上方 `Actions`。
 9. 左侧选择 `每日自动更新18组中债利率数据并部署`。
 10. 点右侧 `Run workflow`，分支选 `main`，再点绿色 `Run workflow`。
