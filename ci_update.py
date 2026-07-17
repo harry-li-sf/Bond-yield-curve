@@ -22,9 +22,19 @@ import requests
 
 SEARCHYC_URL = "https://yield.chinabond.com.cn/cbweb-mn/yc/searchYc"
 SUMMARY_FILE = "summary.json"
+LIFE_DISCOUNT_FILE = "life_discount.json"
 DATA_SCHEMA_VERSION = 2
+LIFE_DISCOUNT_SCHEMA_VERSION = 1
 START_DATE = "2020-01-02"
 SUMMARY_TERMS = ["1Y", "5Y", "10Y", "20Y", "30Y"]
+LIFE_TERMS = [f"{i}Y" for i in range(1, 51)]
+LIFE_MA_PERIOD = 750
+LIFE_ULTIMATE_RATE = 4.5
+LIFE_PREMIUM_TIERS = [
+    {"key": "high_rate_legacy", "name": "1999年（含）之前签发的高利率保单", "spread20Bp": 75},
+    {"key": "special_products", "name": "万能险、投资连结险、变额年金及中短存续期产品", "spread20Bp": 30},
+    {"key": "other_products", "name": "其他产品", "spread20Bp": 45},
+]
 BJ_TZ = timezone(timedelta(hours=8))
 MAX_RETRIES = 3
 RETRY_DELAY = 3
@@ -425,6 +435,161 @@ def update_all_datasets(today_str: str) -> Dict[str, bool]:
     return changed
 
 
+# ================================================================
+# Life insurance liability discount rate curves
+# ================================================================
+
+def build_life_base_curve(ma_rates: Dict[str, float]) -> Dict[str, float]:
+    r20 = ma_rates.get("20Y")
+    if r20 is None:
+        return {}
+
+    base: Dict[str, float] = {}
+    for year in range(1, 51):
+        term = f"{year}Y"
+        if year <= 20:
+            value = ma_rates.get(term)
+        elif year <= 40:
+            r_star = ma_rates.get(term)
+            if r_star is None:
+                value = None
+            else:
+                weight = (year - 20) / 20.0
+                first_interp = r20 + (LIFE_ULTIMATE_RATE - r20) * weight
+                value = first_interp * weight + r_star * (1.0 - weight)
+        else:
+            value = LIFE_ULTIMATE_RATE
+
+        if value is not None:
+            base[term] = round(value, 8)
+    return base
+
+
+def life_premium_for_year(tier: dict, year: int) -> float:
+    spread20 = tier["spread20Bp"] / 100.0
+    if year <= 20:
+        return spread20
+    if year <= 40:
+        return spread20 * (40 - year) / 20.0
+    return 0.0
+
+
+def build_life_discount_spot_curve(base_curve: Dict[str, float], tier: dict) -> Dict[str, float]:
+    spot: Dict[str, float] = {}
+    for year in range(1, 51):
+        term = f"{year}Y"
+        base = base_curve.get(term)
+        if base is None:
+            continue
+        spot[term] = round(base + life_premium_for_year(tier, year), 8)
+    return spot
+
+
+def build_forward_curve(spot_curve: Dict[str, float]) -> Dict[str, float]:
+    forward: Dict[str, float] = {}
+    previous_spot = None
+    for year in range(1, 51):
+        term = f"{year}Y"
+        spot = spot_curve.get(term)
+        if spot is None:
+            previous_spot = None
+            continue
+        if year == 1 or previous_spot is None:
+            value = spot
+        else:
+            current_discount = (1.0 + spot / 100.0) ** year
+            previous_discount = (1.0 + previous_spot / 100.0) ** (year - 1)
+            value = (current_discount / previous_discount - 1.0) * 100.0
+        forward[term] = round(value, 8)
+        previous_spot = spot
+    return forward
+
+
+def moving_average_rows(data: dict, period: int, terms: List[str]) -> List[tuple]:
+    rows = data.get("rows", [])
+    dates = data.get("dates", [])
+    source_terms = data.get("terms", [])
+    term_indexes = [source_terms.index(term) if term in source_terms else None for term in terms]
+    sums = [0.0 for _ in terms]
+    valid_counts = [0 for _ in terms]
+    output = []
+
+    for row_index, row in enumerate(rows):
+        for term_index, source_index in enumerate(term_indexes):
+            value = row[source_index] if source_index is not None and source_index < len(row) else None
+            if value is not None:
+                sums[term_index] += float(value)
+                valid_counts[term_index] += 1
+
+            old_row_index = row_index - period
+            if old_row_index >= 0:
+                old_row = rows[old_row_index]
+                old_value = old_row[source_index] if source_index is not None and source_index < len(old_row) else None
+                if old_value is not None:
+                    sums[term_index] -= float(old_value)
+                    valid_counts[term_index] -= 1
+
+        if row_index >= period - 1:
+            ma = {}
+            for term_index, term in enumerate(terms):
+                if valid_counts[term_index] == period:
+                    ma[term] = round(sums[term_index] / period, 8)
+            if len(ma) == len(terms):
+                output.append((dates[row_index], ma))
+    return output
+
+
+def build_life_discount_data(gov_spot_data: dict) -> dict:
+    dates = []
+    base_rows = []
+    curve_rows = {
+        tier["key"]: {"spotRows": [], "forwardRows": []}
+        for tier in LIFE_PREMIUM_TIERS
+    }
+
+    for curve_date, ma_rates in moving_average_rows(gov_spot_data, LIFE_MA_PERIOD, LIFE_TERMS):
+        base_curve = build_life_base_curve(ma_rates)
+        if len(base_curve) != len(LIFE_TERMS):
+            continue
+        dates.append(curve_date)
+        base_rows.append(row_from_rates(LIFE_TERMS, base_curve))
+
+        for tier in LIFE_PREMIUM_TIERS:
+            spot_curve = build_life_discount_spot_curve(base_curve, tier)
+            forward_curve = build_forward_curve(spot_curve)
+            curve_rows[tier["key"]]["spotRows"].append(row_from_rates(LIFE_TERMS, spot_curve))
+            curve_rows[tier["key"]]["forwardRows"].append(row_from_rates(LIFE_TERMS, forward_curve))
+
+    return {
+        "meta": {
+            "schemaVersion": LIFE_DISCOUNT_SCHEMA_VERSION,
+            "source": "data.json",
+            "sourceCurve": "中债国债即期",
+            "baseRule": "750日移动平均国债即期收益率曲线 + 20-40年二次插值至4.5%终极利率",
+            "forwardRule": "F_t=((1+S_t)^t/(1+S_{t-1})^(t-1))-1",
+            "maPeriod": LIFE_MA_PERIOD,
+            "ultimateRate": LIFE_ULTIMATE_RATE,
+        },
+        "dates": dates,
+        "terms": LIFE_TERMS,
+        "tiers": LIFE_PREMIUM_TIERS,
+        "baseRows": base_rows,
+        "curves": curve_rows,
+    }
+
+
+def generate_life_discount_curves() -> bool:
+    gov_spot = load_existing("data.json", LIFE_TERMS)
+    if not gov_spot.get("dates") or not gov_spot.get("rows"):
+        return False
+    output = build_life_discount_data(gov_spot)
+    if not output["dates"]:
+        return False
+    save_json(LIFE_DISCOUNT_FILE, output)
+    print(f"Life discount curves generated: {len(output['dates'])} dates")
+    return True
+
+
 def generate_summary():
     summary = {
         "date": "",
@@ -480,6 +645,7 @@ def main():
     print("=" * 68)
 
     changed = update_all_datasets(today_str)
+    generate_life_discount_curves()
     generate_summary()
 
     changed_count = sum(1 for ok in changed.values() if ok)
