@@ -27,7 +27,7 @@ SUMMARY_FILE = "summary.json"
 LIFE_DISCOUNT_FILE = "life_discount.json"
 PRESET_MODEL_FILE = "preset_model_data.js"
 DATA_SCHEMA_VERSION = 2
-LIFE_DISCOUNT_SCHEMA_VERSION = 1
+LIFE_DISCOUNT_SCHEMA_VERSION = 2
 START_DATE = "2020-01-02"
 SUMMARY_TERMS = ["1Y", "5Y", "10Y", "20Y", "30Y"]
 LIFE_TERMS = [f"{i}Y" for i in range(1, 51)]
@@ -552,10 +552,6 @@ def moving_average_rows(data: dict, period: int, terms: List[str]) -> List[tuple
 def build_life_discount_data(gov_spot_data: dict) -> dict:
     dates = []
     base_rows = []
-    curve_rows = {
-        tier["key"]: {"spotRows": [], "forwardRows": []}
-        for tier in LIFE_PREMIUM_TIERS
-    }
 
     for curve_date, ma_rates in moving_average_rows(gov_spot_data, LIFE_MA_PERIOD, LIFE_TERMS):
         base_curve = build_life_base_curve(ma_rates)
@@ -563,12 +559,6 @@ def build_life_discount_data(gov_spot_data: dict) -> dict:
             continue
         dates.append(curve_date)
         base_rows.append(row_from_rates(LIFE_TERMS, base_curve))
-
-        for tier in LIFE_PREMIUM_TIERS:
-            spot_curve = build_life_discount_spot_curve(base_curve, tier)
-            forward_curve = build_forward_curve(spot_curve)
-            curve_rows[tier["key"]]["spotRows"].append(row_from_rates(LIFE_TERMS, spot_curve))
-            curve_rows[tier["key"]]["forwardRows"].append(row_from_rates(LIFE_TERMS, forward_curve))
 
     return {
         "meta": {
@@ -584,7 +574,6 @@ def build_life_discount_data(gov_spot_data: dict) -> dict:
         "terms": LIFE_TERMS,
         "tiers": LIFE_PREMIUM_TIERS,
         "baseRows": base_rows,
-        "curves": curve_rows,
     }
 
 
