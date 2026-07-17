@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import os
+import re
 import sys
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -21,8 +22,10 @@ import requests
 
 
 SEARCHYC_URL = "https://yield.chinabond.com.cn/cbweb-mn/yc/searchYc"
+PRESET_MODEL_SOURCE_URL = "https://hh9616.github.io/preset-rate-reference-model/data/model-data.js"
 SUMMARY_FILE = "summary.json"
 LIFE_DISCOUNT_FILE = "life_discount.json"
+PRESET_MODEL_FILE = "preset_model_data.js"
 DATA_SCHEMA_VERSION = 2
 LIFE_DISCOUNT_SCHEMA_VERSION = 1
 START_DATE = "2020-01-02"
@@ -195,6 +198,13 @@ def save_json(filepath: str, data: dict):
     tmp = filepath + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+    os.replace(tmp, filepath)
+
+
+def save_text(filepath: str, text: str):
+    tmp = filepath + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(text)
     os.replace(tmp, filepath)
 
 
@@ -590,6 +600,61 @@ def generate_life_discount_curves() -> bool:
     return True
 
 
+# ================================================================
+# Preset rate reference model
+# ================================================================
+
+def fetch_preset_model_source() -> str:
+    resp = requests.get(PRESET_MODEL_SOURCE_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+    resp.raise_for_status()
+    return resp.text
+
+
+def parse_preset_model_js(source: str) -> dict:
+    match = re.search(r"window\.MODEL_DATA\s*=\s*(\{.*\})\s*;?\s*$", source.strip(), re.S)
+    if not match:
+        raise ValueError("preset model source does not contain window.MODEL_DATA")
+    data = json.loads(match.group(1))
+    validate_preset_model_data(data)
+    return data
+
+
+def validate_preset_model_data(data: dict):
+    if not isinstance(data, dict):
+        raise ValueError("preset model data must be an object")
+    if not data.get("updatedAt"):
+        raise ValueError("preset model data missing updatedAt")
+    series = data.get("series")
+    if not isinstance(series, list) or not series:
+        raise ValueError("preset model data missing series")
+    latest = series[-1]
+    required_latest_fields = ["date", "liabilityAnchor", "assetBaseReturn_mean", "modelReferenceValue"]
+    missing = [field for field in required_latest_fields if field not in latest]
+    if missing:
+        raise ValueError(f"preset model latest row missing fields: {', '.join(missing)}")
+    actual_values = data.get("actualValues")
+    if actual_values is not None and not isinstance(actual_values, list):
+        raise ValueError("preset model actualValues must be a list")
+
+
+def build_preset_model_script(data: dict) -> str:
+    validate_preset_model_data(data)
+    payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    return "window.PRESET_MODEL_DATA = " + payload + ";\n"
+
+
+def generate_preset_model_data() -> bool:
+    try:
+        source = fetch_preset_model_source()
+        data = parse_preset_model_js(source)
+        save_text(PRESET_MODEL_FILE, build_preset_model_script(data))
+        print(f"Preset rate model data updated: {len(data.get('series', []))} rows")
+        return True
+    except Exception as exc:
+        print(f"Preset rate model data update failed: {exc}")
+        return False
+
+
 def generate_summary():
     summary = {
         "date": "",
@@ -646,6 +711,7 @@ def main():
 
     changed = update_all_datasets(today_str)
     generate_life_discount_curves()
+    generate_preset_model_data()
     generate_summary()
 
     changed_count = sum(1 for ok in changed.values() if ok)
