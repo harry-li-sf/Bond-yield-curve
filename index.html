@@ -2630,10 +2630,10 @@
         // ================================================================
         async function loadLifeDiscountData() {
             if (lifeDiscountData) return lifeDiscountData;
-            const resp = await fetch('life_discount.json?' + Date.now(), { cache: 'no-store' });
+            const resp = await fetch('life_discount.json', { cache: 'force-cache' });
             if (!resp.ok) throw new Error('life_discount.json HTTP ' + resp.status);
             const raw = await resp.json();
-            if (!raw || !raw.dates || !raw.dates.length || !raw.curves) throw new Error('life_discount.json 数据为空');
+            if (!raw || !raw.dates || !raw.dates.length || !raw.baseRows || !raw.tiers) throw new Error('life_discount.json 数据为空');
             lifeDiscountData = raw;
             lifeSelectedDate = raw.dates[raw.dates.length - 1];
             const defaultTier = raw.tiers.find(t => t.key === 'other_products') || raw.tiers[0];
@@ -2704,16 +2704,54 @@
             return idx >= 0 && idx < row.length ? row[idx] : null;
         }
 
+        function lifePremiumForYear(tier, year) {
+            const spread20 = (tier.spread20Bp || 0) / 100;
+            if (year <= 20) return spread20;
+            if (year <= 40) return spread20 * (40 - year) / 20;
+            return 0;
+        }
+
+        function buildLifeSpotRow(baseRow, tier) {
+            return lifeDiscountData.terms.map((term, i) => {
+                const base = baseRow[i];
+                if (base == null) return null;
+                const year = parseInt(term, 10);
+                return Number((base + lifePremiumForYear(tier, year)).toFixed(8));
+            });
+        }
+
+        function buildLifeForwardRow(spotRow) {
+            return spotRow.map((spot, i) => {
+                if (spot == null) return null;
+                if (i === 0 || spotRow[i - 1] == null) return spot;
+                const year = i + 1;
+                const currentDiscount = Math.pow(1 + spot / 100, year);
+                const previousDiscount = Math.pow(1 + spotRow[i - 1] / 100, year - 1);
+                return Number(((currentDiscount / previousDiscount - 1) * 100).toFixed(8));
+            });
+        }
+
+        function getLifeRows(dateIdx, tier) {
+            const baseRow = lifeRowAt(lifeDiscountData.baseRows, dateIdx);
+            const oldTierData = lifeDiscountData.curves && lifeDiscountData.curves[tier.key];
+            if (oldTierData) {
+                return {
+                    baseRow,
+                    spotRow: lifeRowAt(oldTierData.spotRows, dateIdx),
+                    forwardRow: lifeRowAt(oldTierData.forwardRows, dateIdx)
+                };
+            }
+            const spotRow = buildLifeSpotRow(baseRow, tier);
+            return { baseRow, spotRow, forwardRow: buildLifeForwardRow(spotRow) };
+        }
+
         function renderLifeDiscountView() {
             if (!lifeDiscountData) return;
             const dateIdx = lifeDiscountData.dates.indexOf(lifeSelectedDate);
             const tier = lifeDiscountData.tiers.find(t => t.key === lifeSelectedTier) || lifeDiscountData.tiers[0];
-            const tierData = lifeDiscountData.curves[tier.key];
-            if (dateIdx < 0 || !tierData) return;
+            if (dateIdx < 0 || !tier) return;
 
-            const baseRow = lifeRowAt(lifeDiscountData.baseRows, dateIdx);
-            const spotRow = lifeRowAt(tierData.spotRows, dateIdx);
-            const forwardRow = lifeRowAt(tierData.forwardRows, dateIdx);
+            const { baseRow, spotRow, forwardRow } = getLifeRows(dateIdx, tier);
             const selectedRow = lifeCurveType === 'forward' ? forwardRow : spotRow;
             const terms = lifeDiscountData.terms;
             const x = terms.map(t => parseFloat(t));
@@ -2763,10 +2801,7 @@
             if (!lifeDiscountData) return;
             const dateIdx = lifeDiscountData.dates.indexOf(lifeSelectedDate);
             const tier = lifeDiscountData.tiers.find(t => t.key === lifeSelectedTier) || lifeDiscountData.tiers[0];
-            const tierData = lifeDiscountData.curves[tier.key];
-            const baseRow = lifeRowAt(lifeDiscountData.baseRows, dateIdx);
-            const spotRow = lifeRowAt(tierData.spotRows, dateIdx);
-            const forwardRow = lifeRowAt(tierData.forwardRows, dateIdx);
+            const { baseRow, spotRow, forwardRow } = getLifeRows(dateIdx, tier);
             const rows = [['日期', lifeSelectedDate], ['业务类型', tier.name], [], ['期限', '基础利率(%)', '即期折现率(%)', '远期折现率(%)']];
             for (let i = 0; i < lifeDiscountData.terms.length; i++) rows.push([lifeDiscountData.terms[i], baseRow[i], spotRow[i], forwardRow[i]]);
             const wb = XLSX.utils.book_new();
