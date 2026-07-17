@@ -18,6 +18,10 @@ class WorkflowPushTests(unittest.TestCase):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("life_discount.json", text)
 
+    def test_preset_model_file_is_committed_by_workflow(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("preset_model_data.js", text)
+
 
 if __name__ == "__main__":
     unittest.main()
