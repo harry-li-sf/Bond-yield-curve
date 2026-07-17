@@ -53,7 +53,7 @@ jobs:
 
       - name: Validate data files
         run: |
-          for f in data.json data_cdb.json data_gov_ytm.json data_cdb_ytm.json data_*.json summary.json; do
+          for f in data.json data_cdb.json data_gov_ytm.json data_cdb_ytm.json data_*.json life_discount.json summary.json; do
             if [ -f "$f" ]; then
               SIZE=$(wc -c < "$f")
               echo "$f size: $SIZE bytes"
@@ -68,7 +68,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data.json data_cdb.json data_gov_ytm.json data_cdb_ytm.json data_*.json summary.json 2>/dev/null || git add data.json || echo "No data files to add"
+          git add data.json data_cdb.json data_gov_ytm.json data_cdb_ytm.json data_*.json life_discount.json summary.json 2>/dev/null || git add data.json || echo "No data files to add"
 
           if git diff --cached --quiet; then
             echo "No data changes. Checking whether keepalive commit is needed..."
