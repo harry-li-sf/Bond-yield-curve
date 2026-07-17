@@ -93,10 +93,25 @@ class LifeDiscountTests(unittest.TestCase):
         self.assertEqual(output["dates"], ["2026-07-15"])
         self.assertEqual(output["terms"], terms)
         self.assertEqual(len(output["tiers"]), 3)
-        self.assertIn("other_products", output["curves"])
+        self.assertNotIn("curves", output)
         self.assertAlmostEqual(output["baseRows"][0][19], 2.0, places=8)
         self.assertAlmostEqual(output["baseRows"][0][39], 4.5, places=8)
-        self.assertAlmostEqual(output["curves"]["other_products"]["spotRows"][0][0], 2.45, places=8)
+        other = next(tier for tier in output["tiers"] if tier["key"] == "other_products")
+        spot = ci_update.build_life_discount_spot_curve(
+            dict(zip(output["terms"], output["baseRows"][0])),
+            other,
+        )
+        self.assertAlmostEqual(spot["1Y"], 2.45, places=8)
+
+    def test_life_discount_data_schema_is_compact(self):
+        terms = [f"{year}Y" for year in range(1, 51)]
+        rows = [[2.0 for _ in terms] for _ in range(750)]
+        gov_data = {"dates": [f"2024-01-{(i % 28) + 1:02d}" for i in range(750)], "terms": terms, "rows": rows}
+
+        output = ci_update.build_life_discount_data(gov_data)
+
+        self.assertEqual(output["meta"]["schemaVersion"], 2)
+        self.assertEqual(set(output.keys()), {"meta", "dates", "terms", "tiers", "baseRows"})
 
 
 class PresetModelTests(unittest.TestCase):
