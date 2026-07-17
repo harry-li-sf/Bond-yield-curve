@@ -50,6 +50,55 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(sorted(spot.keys()), ["1Y", "2Y", "3Y"])
 
 
+class LifeDiscountTests(unittest.TestCase):
+    def test_life_base_curve_uses_ultimate_rate_transition(self):
+        ma_rates = {f"{year}Y": 2.0 for year in range(1, 51)}
+
+        base = ci_update.build_life_base_curve(ma_rates)
+
+        self.assertAlmostEqual(base["20Y"], 2.0, places=8)
+        self.assertAlmostEqual(base["30Y"], 2.625, places=8)
+        self.assertAlmostEqual(base["40Y"], 4.5, places=8)
+        self.assertAlmostEqual(base["50Y"], 4.5, places=8)
+
+    def test_life_discount_spot_adds_named_product_premium(self):
+        base = {f"{year}Y": 2.0 for year in range(1, 51)}
+        tier = next(t for t in ci_update.LIFE_PREMIUM_TIERS if t["key"] == "high_rate_legacy")
+
+        spot = ci_update.build_life_discount_spot_curve(base, tier)
+
+        self.assertEqual(tier["name"], "1999年（含）之前签发的高利率保单")
+        self.assertAlmostEqual(spot["10Y"], 2.75, places=8)
+        self.assertAlmostEqual(spot["30Y"], 2.375, places=8)
+        self.assertAlmostEqual(spot["40Y"], 2.0, places=8)
+
+    def test_forward_rates_are_derived_from_spot_discount_rates(self):
+        spot = {"1Y": 2.0, "2Y": 3.0, "3Y": 4.0}
+
+        forward = ci_update.build_forward_curve(spot)
+
+        expected_2y = (((1.03 ** 2) / 1.02) - 1.0) * 100.0
+        self.assertAlmostEqual(forward["1Y"], 2.0, places=8)
+        self.assertAlmostEqual(forward["2Y"], expected_2y, places=8)
+
+    def test_life_discount_data_uses_existing_gov_spot_rows_only(self):
+        terms = [f"{year}Y" for year in range(1, 51)]
+        rows = [[2.0 for _ in terms] for _ in range(750)]
+        dates = [f"2024-01-{(i % 28) + 1:02d}" for i in range(750)]
+        dates[-1] = "2026-07-15"
+        gov_data = {"dates": dates, "terms": terms, "rows": rows}
+
+        output = ci_update.build_life_discount_data(gov_data)
+
+        self.assertEqual(output["dates"], ["2026-07-15"])
+        self.assertEqual(output["terms"], terms)
+        self.assertEqual(len(output["tiers"]), 3)
+        self.assertIn("other_products", output["curves"])
+        self.assertAlmostEqual(output["baseRows"][0][19], 2.0, places=8)
+        self.assertAlmostEqual(output["baseRows"][0][39], 4.5, places=8)
+        self.assertAlmostEqual(output["curves"]["other_products"]["spotRows"][0][0], 2.45, places=8)
+
+
 class UpdateTests(unittest.TestCase):
     def test_new_dataset_without_metadata_rebuilds_from_start_date(self):
         dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "rail_ytm")
