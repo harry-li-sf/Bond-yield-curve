@@ -27,17 +27,16 @@ SUMMARY_FILE = "summary.json"
 LIFE_DISCOUNT_FILE = "life_discount.json"
 PRESET_MODEL_FILE = "preset_model_data.js"
 DATA_SCHEMA_VERSION = 2
-LIFE_DISCOUNT_SCHEMA_VERSION = 2
+LIFE_DISCOUNT_SCHEMA_VERSION = 3
 START_DATE = "2020-01-02"
 SUMMARY_TERMS = ["1Y", "5Y", "10Y", "20Y", "30Y"]
 LIFE_TERMS = [f"{i}Y" for i in range(1, 51)]
+LIFE_SPREAD_TERMS = [f"{i}Y" for i in range(1, 21)]
 LIFE_MA_PERIOD = 750
 LIFE_ULTIMATE_RATE = 4.5
-LIFE_PREMIUM_TIERS = [
-    {"key": "high_rate_legacy", "name": "1999年（含）之前签发的高利率保单", "spread20Bp": 75},
-    {"key": "special_products", "name": "万能险、投资连结险、变额年金及中短存续期产品", "spread20Bp": 30},
-    {"key": "other_products", "name": "其他产品", "spread20Bp": 45},
-]
+LIFE_BENCHMARK_KEYS = ["gov_spot", "cdb_spot"]
+LIFE_SHORT_SPREAD_TERM = "20Y"
+LIFE_LONG_SPREAD_TERM = "50Y"
 BJ_TZ = timezone(timedelta(hours=8))
 MAX_RETRIES = 3
 RETRY_DELAY = 3
@@ -146,6 +145,16 @@ def build_datasets() -> List[DatasetConfig]:
 ALL_DATASETS = build_datasets()
 DATASET_BY_KEY = {dataset.key: dataset for dataset in ALL_DATASETS}
 CURVE_BY_ID = {curve.yc_def_id: curve for curve in CURVES}
+LIFE_BENCHMARKS = [
+    DATASET_BY_KEY[key]
+    for key in LIFE_BENCHMARK_KEYS
+    if key in DATASET_BY_KEY
+]
+LIFE_SPREAD_BONDS = [
+    dataset
+    for dataset in ALL_DATASETS
+    if dataset.rate_type == "spot" and dataset.key not in LIFE_BENCHMARK_KEYS and dataset.curve.max_year >= 20
+]
 
 
 def now_beijing() -> date:
@@ -475,23 +484,58 @@ def build_life_base_curve(ma_rates: Dict[str, float]) -> Dict[str, float]:
     return base
 
 
-def life_premium_for_year(tier: dict, year: int) -> float:
-    spread20 = tier["spread20Bp"] / 100.0
-    if year <= 20:
-        return spread20
-    if year <= 40:
-        return spread20 * (40 - year) / 20.0
-    return 0.0
+def dataset_summary(dataset: DatasetConfig) -> dict:
+    return {
+        "key": dataset.key,
+        "name": dataset.display_name,
+        "shortName": dataset.curve.short_name,
+        "sourceFile": dataset.filename,
+        "sourceNote": dataset.source_note,
+    }
 
 
-def build_life_discount_spot_curve(base_curve: Dict[str, float], tier: dict) -> Dict[str, float]:
+def build_accounting_premium_curve(
+    benchmark_rates: Dict[str, float],
+    spread_bond_rates: Dict[str, float],
+) -> Dict[str, float]:
+    front_spreads: Dict[int, float] = {}
+    for year in range(1, 21):
+        term = f"{year}Y"
+        bond = spread_bond_rates.get(term)
+        benchmark = benchmark_rates.get(term)
+        if bond is not None and benchmark is not None:
+            front_spreads[year] = float(bond) - float(benchmark)
+
+    spread20 = front_spreads.get(20)
+    short_rate = benchmark_rates.get(LIFE_SHORT_SPREAD_TERM)
+    long_rate = benchmark_rates.get(LIFE_LONG_SPREAD_TERM)
+    if spread20 is None or short_rate is None or long_rate is None:
+        return {}
+
+    spread40 = float(long_rate) - float(short_rate)
+    premium: Dict[str, float] = {}
+    for year in range(1, 51):
+        if year <= 20:
+            value = front_spreads.get(year)
+        elif year < 40:
+            weight = (year - 20) / 20.0
+            value = spread20 + (spread40 - spread20) * weight
+        else:
+            value = spread40
+        if value is not None:
+            premium[f"{year}Y"] = round(value, 8)
+    return premium
+
+
+def build_life_discount_spot_curve(base_curve: Dict[str, float], premium_curve: Dict[str, float]) -> Dict[str, float]:
     spot: Dict[str, float] = {}
     for year in range(1, 51):
         term = f"{year}Y"
         base = base_curve.get(term)
-        if base is None:
+        premium = premium_curve.get(term)
+        if base is None or premium is None:
             continue
-        spot[term] = round(base + life_premium_for_year(tier, year), 8)
+        spot[term] = round(base + premium, 8)
     return spot
 
 
@@ -549,43 +593,98 @@ def moving_average_rows(data: dict, period: int, terms: List[str]) -> List[tuple
     return output
 
 
-def build_life_discount_data(gov_spot_data: dict) -> dict:
-    dates = []
-    base_rows = []
+def moving_average_map(data: dict, period: int, terms: List[str]) -> Dict[str, Dict[str, float]]:
+    return {
+        curve_date: ma_rates
+        for curve_date, ma_rates in moving_average_rows(data, period, terms)
+    }
 
-    for curve_date, ma_rates in moving_average_rows(gov_spot_data, LIFE_MA_PERIOD, LIFE_TERMS):
-        base_curve = build_life_base_curve(ma_rates)
-        if len(base_curve) != len(LIFE_TERMS):
-            continue
-        dates.append(curve_date)
-        base_rows.append(row_from_rates(LIFE_TERMS, base_curve))
+
+def build_life_discount_data(benchmark_data: Dict[str, dict], spread_bond_data: Dict[str, dict]) -> dict:
+    benchmark_ma = {
+        key: moving_average_map(data, LIFE_MA_PERIOD, LIFE_TERMS)
+        for key, data in benchmark_data.items()
+        if data.get("dates") and data.get("rows")
+    }
+    spread_bond_ma = {
+        key: moving_average_map(data, LIFE_MA_PERIOD, LIFE_SPREAD_TERMS)
+        for key, data in spread_bond_data.items()
+        if data.get("dates") and data.get("rows")
+    }
+
+    if not benchmark_ma or not spread_bond_ma:
+        dates: List[str] = []
+    else:
+        common_dates = set.intersection(
+            *[set(rows) for rows in [*benchmark_ma.values(), *spread_bond_ma.values()]]
+        )
+        dates = sorted(common_dates)
+
+    base_rows: Dict[str, List[List[Optional[float]]]] = {key: [] for key in benchmark_ma}
+    benchmark_rows: Dict[str, List[List[Optional[float]]]] = {key: [] for key in benchmark_ma}
+    spread_bond_rows: Dict[str, List[List[Optional[float]]]] = {key: [] for key in spread_bond_ma}
+    usable_dates = []
+
+    for curve_date in dates:
+        bases_for_date: Dict[str, Dict[str, float]] = {}
+        for key, rows_by_date in benchmark_ma.items():
+            base_curve = build_life_base_curve(rows_by_date[curve_date])
+            if len(base_curve) != len(LIFE_TERMS):
+                break
+            bases_for_date[key] = base_curve
+        else:
+            usable_dates.append(curve_date)
+            for key, rows_by_date in benchmark_ma.items():
+                benchmark_rows[key].append(row_from_rates(LIFE_TERMS, rows_by_date[curve_date]))
+                base_rows[key].append(row_from_rates(LIFE_TERMS, bases_for_date[key]))
+            for key, rows_by_date in spread_bond_ma.items():
+                spread_bond_rows[key].append(row_from_rates(LIFE_SPREAD_TERMS, rows_by_date[curve_date]))
+
+    benchmark_keys = [dataset.key for dataset in LIFE_BENCHMARKS if dataset.key in benchmark_ma]
+    spread_bond_keys = [dataset.key for dataset in LIFE_SPREAD_BONDS if dataset.key in spread_bond_ma]
 
     return {
         "meta": {
             "schemaVersion": LIFE_DISCOUNT_SCHEMA_VERSION,
-            "source": "data.json",
-            "sourceCurve": "中债国债即期",
-            "baseRule": "750日移动平均国债即期收益率曲线 + 20-40年二次插值至4.5%终极利率",
+            "source": "derived-from-local-curve-json",
+            "baseRule": "750日移动平均标的即期收益率曲线 + 20-40年二次插值至4.5%终极利率",
+            "premiumRule": "前20年为选中债券即期曲线与标的即期曲线的利差；40年及以后为标的50Y与20Y利差；20-40年线性插值",
             "forwardRule": "F_t=((1+S_t)^t/(1+S_{t-1})^(t-1))-1",
             "maPeriod": LIFE_MA_PERIOD,
             "ultimateRate": LIFE_ULTIMATE_RATE,
+            "shortSpreadTerm": LIFE_SHORT_SPREAD_TERM,
+            "longSpreadTerm": LIFE_LONG_SPREAD_TERM,
         },
-        "dates": dates,
+        "dates": usable_dates,
         "terms": LIFE_TERMS,
-        "tiers": LIFE_PREMIUM_TIERS,
-        "baseRows": base_rows,
+        "spreadTerms": LIFE_SPREAD_TERMS,
+        "benchmarks": [dataset_summary(DATASET_BY_KEY[key]) for key in benchmark_keys],
+        "spreadBonds": [dataset_summary(DATASET_BY_KEY[key]) for key in spread_bond_keys],
+        "baseRows": {key: base_rows[key] for key in benchmark_keys},
+        "benchmarkRows": {key: benchmark_rows[key] for key in benchmark_keys},
+        "spreadBondRows": {key: spread_bond_rows[key] for key in spread_bond_keys},
     }
 
 
 def generate_life_discount_curves() -> bool:
-    gov_spot = load_existing("data.json", LIFE_TERMS)
-    if not gov_spot.get("dates") or not gov_spot.get("rows"):
+    benchmark_data = {
+        dataset.key: load_existing(dataset.filename, dataset.terms)
+        for dataset in LIFE_BENCHMARKS
+    }
+    spread_bond_data = {
+        dataset.key: load_existing(dataset.filename, dataset.terms)
+        for dataset in LIFE_SPREAD_BONDS
+    }
+    if not any(data.get("dates") and data.get("rows") for data in spread_bond_data.values()):
         return False
-    output = build_life_discount_data(gov_spot)
+    output = build_life_discount_data(benchmark_data, spread_bond_data)
     if not output["dates"]:
         return False
     save_json(LIFE_DISCOUNT_FILE, output)
-    print(f"Life discount curves generated: {len(output['dates'])} dates")
+    print(
+        f"Life discount curves generated: {len(output['dates'])} dates, "
+        f"{len(output['benchmarks'])} benchmarks, {len(output['spreadBonds'])} spread bonds"
+    )
     return True
 
 
