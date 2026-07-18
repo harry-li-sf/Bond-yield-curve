@@ -14,10 +14,10 @@
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Roboto, system-ui, sans-serif; background: #f0f4f8; padding: 20px; color: #1a2332; }
         .container { max-width: none; margin: 0 auto; }
-        .header-card { background: #ffffff; border-radius: 14px; box-shadow: 0 4px 16px rgba(0,20,50,0.08); padding: 16px 24px; border: 1px solid #e6edf5; margin-bottom: 20px; display: grid; grid-template-columns: minmax(220px, 1fr) auto; align-items: start; gap: 12px 18px; }
-        .header-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+        .header-card { background: #ffffff; border-radius: 14px; box-shadow: 0 4px 16px rgba(0,20,50,0.08); padding: 16px 24px; border: 1px solid #e6edf5; margin-bottom: 20px; display: grid; grid-template-columns: minmax(320px, 1fr) auto; align-items: start; gap: 10px 18px; }
+        .header-actions { grid-column: 2; grid-row: 1; display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
         h1 { font-size: 22px; font-weight: 600; color: #0b1a33; margin: 0; white-space: nowrap; }
-        .subtitle { grid-column: 1 / -1; font-size: 13px; color: #5a6e8a; border-left: none; padding-left: 0; background: transparent; border-radius: 0; line-height: 1.6; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 0; }
+        .subtitle { grid-column: 1 / -1; grid-row: 3; font-size: 13px; color: #5a6e8a; border-left: none; padding-left: 0; background: transparent; border-radius: 0; line-height: 1.6; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 0; }
         .upload-area { display: flex; align-items: center; gap: 12px; background: white; padding: 6px 16px 6px 12px; border-radius: 30px; border: 1px solid #d0dde8; box-shadow: 0 2px 6px rgba(0,0,0,0.02); flex-wrap: wrap; }
         .upload-area label { font-size: 13px; font-weight: 500; color: #1f4a7a; cursor: pointer; display: flex; align-items: center; gap: 6px; }
         .upload-area input[type="file"] { display: none; }
@@ -45,7 +45,8 @@
         .table-wrap td { padding: 7px 10px; text-align: center; border-bottom: 1px solid #e9eef4; font-size: 13px; white-space: nowrap; }
         .table-wrap tr:hover td { background: #f6faff; }
         .footnote { font-size: 12px; color: #6f85a5; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #dce4ed; }
-        .metrics-row { display: flex; flex-wrap: wrap; gap: 12px 30px; background: #f6faff; padding: 10px 16px; border-radius: 10px; margin-bottom: 16px; border: 1px solid #e0e9f2; }
+        .bond-summary-card { margin-bottom: 20px; }
+        .metrics-row { display: flex; flex-wrap: wrap; gap: 12px 30px; background: #f6faff; padding: 10px 16px; border-radius: 10px; margin-bottom: 0; border: 1px solid #e0e9f2; }
         .metric-item { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
         .metric-label { font-size: 13px; color: #5a6e8a; font-weight: 500; }
         .metric-value { font-size: 18px; font-weight: 700; color: #0b1a33; }
@@ -63,7 +64,7 @@
         .view-controls .date-picker { display: flex; align-items: center; gap: 6px; }
         .view-controls .date-picker select { padding: 4px 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; font-size: 13px; max-width: 180px; }
         .view-controls .date-picker label { font-size: 13px; font-weight: 500; color: #3e5a7a; }
-        .bond-toggle { display: inline-flex; flex-wrap: wrap; gap: 2px; background: #eef3fa; border-radius: 12px; padding: 3px; }
+        .bond-toggle { grid-column: 1; grid-row: 2; justify-self: start; display: inline-flex; flex-wrap: wrap; gap: 2px; background: #eef3fa; border-radius: 12px; padding: 3px; }
         .bond-toggle button { border: none; background: transparent; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #3e5a7a; cursor: pointer; transition: 0.2s; white-space: nowrap; }
         .bond-toggle button.active { background: #1f4a7a; color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
         .bond-toggle button:hover:not(.active) { background: rgba(255,255,255,0.6); }
@@ -120,7 +121,7 @@
         .play-btn.paused { background: #27ae60; }
         .play-btn.paused:hover { background: #1e8449; }
         @media (max-width: 1024px) { .grid-2 { grid-template-columns: 1fr; } }
-        @media (max-width: 900px) { .header-card { grid-template-columns: 1fr; } .header-actions { justify-content: flex-start; } h1 { white-space: normal; } }
+        @media (max-width: 900px) { .header-card { grid-template-columns: 1fr; } .header-actions { grid-column: 1; grid-row: 2; justify-content: flex-start; } .bond-toggle { grid-row: 3; } .subtitle { grid-row: 4; } h1 { white-space: normal; } }
         @media (max-width: 640px) { body { padding: 12px; } .card { padding: 14px; } .chart-box { height: 220px; } .chart-box.tall { height: 260px; } .table-wrap { font-size: 12px; } .table-wrap th, .table-wrap td { padding: 5px 6px; } .upload-area { width: 100%; justify-content: flex-start; flex-wrap: wrap; } .date-selector select { max-width: 120px; } .metrics-row { gap: 8px 16px; padding: 8px 12px; } .metric-value { font-size: 16px; } .dash-terms { grid-template-columns: repeat(2, 1fr); gap: 6px; } .term-cell { padding: 10px 2px; } .term-val { font-size: clamp(14px, 3.6vw, 18px); } .term-label { font-size: 11px; margin-bottom: 4px; } .term-chg { font-size: clamp(9px, 2.6vw, 12px); margin-top: 4px; } }
         @media (max-width: 380px) { .dash-terms { grid-template-columns: repeat(2, 1fr); } .term-val { font-size: clamp(13px, 4.2vw, 17px); } }
         .table-wrap::-webkit-scrollbar { height: 6px; }
@@ -174,8 +175,6 @@
         .ma-chip .remove:hover { opacity: 1; }
         .ma-legend-dot { display: inline-block; width: 10px; height: 3px; border-radius: 2px; vertical-align: middle; }
         .section-toggle { display: inline-flex; gap: 3px; background: #e8eef6; border-radius: 12px; padding: 3px; }
-        .header-actions .section-toggle { order: 2; }
-        .header-actions .bond-toggle { order: 1; }
         .section-toggle button { border: none; background: transparent; padding: 5px 14px; border-radius: 9px; font-size: 13px; font-weight: 600; color: #375472; cursor: pointer; white-space: nowrap; }
         .section-toggle button.active { background: #102a43; color: #fff; box-shadow: 0 1px 5px rgba(0,0,0,0.16); }
         .premium-toolbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 14px; background: #f6faff; border: 1px solid #dfe9f5; border-radius: 10px; margin-bottom: 14px; }
@@ -213,12 +212,12 @@
                     <button data-section="premium">溢价评估利率</button>
                     <button data-section="preset">预定利率研究值</button>
                 </div>
-                <div class="bond-toggle" id="bondToggle">
-                    <button class="active" data-bond="gov_spot">国债即期</button>
-                    <button data-bond="gov_ytm">国债到期</button>
-                    <button data-bond="cdb_spot">国开即期</button>
-                    <button data-bond="cdb_ytm">国开到期</button>
-                </div>
+            </div>
+            <div class="bond-toggle" id="bondToggle">
+                <button class="active" data-bond="gov_spot">国债即期</button>
+                <button data-bond="gov_ytm">国债到期</button>
+                <button data-bond="cdb_spot">国开即期</button>
+                <button data-bond="cdb_ytm">国开到期</button>
             </div>
             <div class="subtitle">
                 <span>
@@ -246,6 +245,14 @@
         <div class="view-detail" id="viewDetail" style="display:none;">
         <button class="btn-back" id="btnBackToOverview" onclick="showOverview()">← 返回总览</button>
 
+        <div class="card bond-summary-card" id="bondSummaryCard">
+            <div class="card-title">
+                <span id="bondSummaryTitle">债券数据汇总</span>
+                <span class="badge" id="bondSummaryBadge">最新日期</span>
+            </div>
+            <div class="metrics-row" id="metricsRow"></div>
+        </div>
+
         <!-- 第一行：即期曲线 | 关键期限利率 -->
         <div class="grid-2">
             <div class="card">
@@ -257,7 +264,6 @@
                         <select id="curveDateSelect"></select>
                     </div>
                 </div>
-                <div class="metrics-row" id="metricsRow"></div>
                 <div class="chart-box" id="curveChart"></div>
                 <div class="footnote">期限单位：年 ｜ 利率单位：%</div>
             </div>
@@ -1148,7 +1154,7 @@
         function lightweightTooltip(config) {
             const axisPointer = Object.assign({ animation: false }, config.axisPointer || {});
             return Object.assign({}, config, {
-                triggerOn: 'click',
+                triggerOn: 'mousemove|click',
                 transitionDuration: 0,
                 axisPointer
             });
@@ -1188,6 +1194,10 @@
             }
 
             const container = document.getElementById('metricsRow');
+            const title = document.getElementById('bondSummaryTitle');
+            const badge = document.getElementById('bondSummaryBadge');
+            if (title) title.textContent = bondName() + '数据汇总';
+            if (badge) badge.textContent = targetDate + (targetDate === dataStore.latestDate ? ' 最新' : ' 所选');
             const fmt = (v) => v !== null ? v.toFixed(4) : '—';
             const changeStr = (bp) => {
                 if (bp === null) return '';
