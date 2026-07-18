@@ -416,14 +416,16 @@
             <div class="card">
                 <div class="card-title">
                     <span>寿险合同负债评估折现率曲线</span>
-                    <span class="badge">750日国债即期均值 + 综合溢价</span>
+                    <span class="badge">标的基础曲线 + 会计负债综合溢价</span>
                     <button class="btn-download" id="lifeDownloadBtn" style="font-size:11px;padding:3px 12px;">导出XLSX</button>
                 </div>
                 <div class="premium-toolbar">
                     <label for="lifeDateSelect">评估日期</label>
                     <select id="lifeDateSelect"></select>
-                    <label>业务类型</label>
-                    <div class="premium-btn-group" id="lifeTierGroup"></div>
+                    <label>标的利率曲线</label>
+                    <div class="premium-btn-group" id="lifeBenchmarkGroup"></div>
+                    <label>溢价债券</label>
+                    <div class="premium-btn-group" id="lifeSpreadBondGroup"></div>
                     <label>曲线</label>
                     <div class="premium-btn-group" id="lifeCurveTypeGroup">
                         <button class="active" data-curve-type="spot">即期折现率</button>
@@ -438,12 +440,12 @@
                             <span class="badge" id="lifeChartBadge">即期折现率</span>
                         </div>
                         <div class="chart-box tall" id="lifeDiscountChart"></div>
-                        <div class="footnote">基础利率为750日移动平均中债国债即期收益率曲线；20-40年按监管附件公式过渡至4.5%终极利率。</div>
+                        <div class="footnote">基础利率按选中标的曲线的750日移动平均即期收益率生成，20-40年过渡至4.5%终极利率；综合溢价按会计负债口径即时计算。</div>
                     </div>
                     <div class="card" style="box-shadow:none;border-color:#e5edf6;">
                         <div class="card-title">
                             <span>关键期限</span>
-                            <span class="badge">基础利率 / 即期 / 远期</span>
+                            <span class="badge">基础利率 / 综合溢价 / 即期 / 远期</span>
                         </div>
                         <div class="table-wrap">
                             <table>
@@ -451,6 +453,7 @@
                                     <tr>
                                         <th>期限</th>
                                         <th>基础利率(%)</th>
+                                        <th>综合溢价(%)</th>
                                         <th>即期折现率(%)</th>
                                         <th>远期折现率(%)</th>
                                     </tr>
@@ -717,7 +720,8 @@
         let lifeDiscountData = null;
         let lifeDiscountChart = null;
         let lifeSelectedDate = null;
-        let lifeSelectedTier = 'other_products';
+        let lifeSelectedBenchmark = 'gov_spot';
+        let lifeSelectedSpreadBond = null;
         let lifeCurveType = 'spot';
         let presetModelData = null;
         let presetModelChart = null;
@@ -2633,11 +2637,13 @@
             const resp = await fetch('life_discount.json', { cache: 'force-cache' });
             if (!resp.ok) throw new Error('life_discount.json HTTP ' + resp.status);
             const raw = await resp.json();
-            if (!raw || !raw.dates || !raw.dates.length || !raw.baseRows || !raw.tiers) throw new Error('life_discount.json 数据为空');
+            if (!raw || !raw.dates || !raw.dates.length || !raw.baseRows || !raw.benchmarks || !raw.spreadBonds) throw new Error('life_discount.json 数据为空');
             lifeDiscountData = raw;
             lifeSelectedDate = raw.dates[raw.dates.length - 1];
-            const defaultTier = raw.tiers.find(t => t.key === 'other_products') || raw.tiers[0];
-            lifeSelectedTier = defaultTier.key;
+            const defaultBenchmark = raw.benchmarks.find(item => item.key === 'gov_spot') || raw.benchmarks[0];
+            const defaultSpreadBond = raw.spreadBonds[0];
+            lifeSelectedBenchmark = defaultBenchmark.key;
+            lifeSelectedSpreadBond = defaultSpreadBond.key;
             return lifeDiscountData;
         }
 
@@ -2683,14 +2689,24 @@
                 }
                 dateSelect.value = lifeSelectedDate;
             }
-            const tierGroup = document.getElementById('lifeTierGroup');
-            if (tierGroup && tierGroup.children.length === 0) {
-                for (const tier of lifeDiscountData.tiers) {
+            const benchmarkGroup = document.getElementById('lifeBenchmarkGroup');
+            if (benchmarkGroup && benchmarkGroup.children.length === 0) {
+                for (const benchmark of lifeDiscountData.benchmarks) {
                     const btn = document.createElement('button');
-                    btn.dataset.tier = tier.key;
-                    btn.textContent = tier.name;
-                    btn.className = tier.key === lifeSelectedTier ? 'active' : '';
-                    tierGroup.appendChild(btn);
+                    btn.dataset.benchmark = benchmark.key;
+                    btn.textContent = benchmark.shortName || benchmark.name;
+                    btn.className = benchmark.key === lifeSelectedBenchmark ? 'active' : '';
+                    benchmarkGroup.appendChild(btn);
+                }
+            }
+            const spreadBondGroup = document.getElementById('lifeSpreadBondGroup');
+            if (spreadBondGroup && spreadBondGroup.children.length === 0) {
+                for (const bond of lifeDiscountData.spreadBonds) {
+                    const btn = document.createElement('button');
+                    btn.dataset.spreadBond = bond.key;
+                    btn.textContent = bond.shortName || bond.name;
+                    btn.className = bond.key === lifeSelectedSpreadBond ? 'active' : '';
+                    spreadBondGroup.appendChild(btn);
                 }
             }
         }
@@ -2704,19 +2720,44 @@
             return idx >= 0 && idx < row.length ? row[idx] : null;
         }
 
-        function lifePremiumForYear(tier, year) {
-            const spread20 = (tier.spread20Bp || 0) / 100;
-            if (year <= 20) return spread20;
-            if (year <= 40) return spread20 * (40 - year) / 20;
-            return 0;
+        function lifeSpreadValue(row, term) {
+            const terms = lifeDiscountData.spreadTerms || [];
+            const idx = terms.indexOf(term);
+            return idx >= 0 && row && idx < row.length ? row[idx] : null;
         }
 
-        function buildLifeSpotRow(baseRow, tier) {
+        function buildLifePremiumRow(benchmarkRow, spreadBondRow) {
+            const shortTerm = lifeDiscountData.meta?.shortSpreadTerm || '20Y';
+            const longTerm = lifeDiscountData.meta?.longSpreadTerm || '50Y';
+            const shortBenchmark = lifeValue(benchmarkRow, shortTerm);
+            const longBenchmark = lifeValue(benchmarkRow, longTerm);
+            const spread20 = (() => {
+                const bond = lifeSpreadValue(spreadBondRow, shortTerm);
+                return bond != null && shortBenchmark != null ? bond - shortBenchmark : null;
+            })();
+            const spread40 = shortBenchmark != null && longBenchmark != null ? longBenchmark - shortBenchmark : null;
+            return lifeDiscountData.terms.map(term => {
+                const year = parseInt(term, 10);
+                if (year <= 20) {
+                    const bond = lifeSpreadValue(spreadBondRow, term);
+                    const benchmark = lifeValue(benchmarkRow, term);
+                    return bond != null && benchmark != null ? Number((bond - benchmark).toFixed(8)) : null;
+                }
+                if (spread20 == null || spread40 == null) return null;
+                if (year < 40) {
+                    const weight = (year - 20) / 20;
+                    return Number((spread20 + (spread40 - spread20) * weight).toFixed(8));
+                }
+                return Number(spread40.toFixed(8));
+            });
+        }
+
+        function buildLifeSpotRow(baseRow, premiumRow) {
             return lifeDiscountData.terms.map((term, i) => {
                 const base = baseRow[i];
-                if (base == null) return null;
-                const year = parseInt(term, 10);
-                return Number((base + lifePremiumForYear(tier, year)).toFixed(8));
+                const premium = premiumRow[i];
+                if (base == null || premium == null) return null;
+                return Number((base + premium).toFixed(8));
             });
         }
 
@@ -2731,36 +2772,33 @@
             });
         }
 
-        function getLifeRows(dateIdx, tier) {
-            const baseRow = lifeRowAt(lifeDiscountData.baseRows, dateIdx);
-            const oldTierData = lifeDiscountData.curves && lifeDiscountData.curves[tier.key];
-            if (oldTierData) {
-                return {
-                    baseRow,
-                    spotRow: lifeRowAt(oldTierData.spotRows, dateIdx),
-                    forwardRow: lifeRowAt(oldTierData.forwardRows, dateIdx)
-                };
-            }
-            const spotRow = buildLifeSpotRow(baseRow, tier);
-            return { baseRow, spotRow, forwardRow: buildLifeForwardRow(spotRow) };
+        function getLifeRows(dateIdx, benchmarkKey, spreadBondKey) {
+            const baseRow = lifeRowAt(lifeDiscountData.baseRows?.[benchmarkKey], dateIdx);
+            const benchmarkRow = lifeRowAt(lifeDiscountData.benchmarkRows?.[benchmarkKey], dateIdx);
+            const spreadBondRow = lifeRowAt(lifeDiscountData.spreadBondRows?.[spreadBondKey], dateIdx);
+            const premiumRow = buildLifePremiumRow(benchmarkRow, spreadBondRow);
+            const spotRow = buildLifeSpotRow(baseRow, premiumRow);
+            return { baseRow, benchmarkRow, spreadBondRow, premiumRow, spotRow, forwardRow: buildLifeForwardRow(spotRow) };
         }
 
         function renderLifeDiscountView() {
             if (!lifeDiscountData) return;
             const dateIdx = lifeDiscountData.dates.indexOf(lifeSelectedDate);
-            const tier = lifeDiscountData.tiers.find(t => t.key === lifeSelectedTier) || lifeDiscountData.tiers[0];
-            if (dateIdx < 0 || !tier) return;
+            const benchmark = lifeDiscountData.benchmarks.find(item => item.key === lifeSelectedBenchmark) || lifeDiscountData.benchmarks[0];
+            const spreadBond = lifeDiscountData.spreadBonds.find(item => item.key === lifeSelectedSpreadBond) || lifeDiscountData.spreadBonds[0];
+            if (dateIdx < 0 || !benchmark || !spreadBond) return;
 
-            const { baseRow, spotRow, forwardRow } = getLifeRows(dateIdx, tier);
+            const { baseRow, premiumRow, spotRow, forwardRow } = getLifeRows(dateIdx, benchmark.key, spreadBond.key);
             const selectedRow = lifeCurveType === 'forward' ? forwardRow : spotRow;
             const terms = lifeDiscountData.terms;
             const x = terms.map(t => parseFloat(t));
             const selectedName = lifeCurveType === 'forward' ? '远期折现率' : '即期折现率';
 
-            document.querySelectorAll('#lifeTierGroup button').forEach(btn => btn.classList.toggle('active', btn.dataset.tier === lifeSelectedTier));
+            document.querySelectorAll('#lifeBenchmarkGroup button').forEach(btn => btn.classList.toggle('active', btn.dataset.benchmark === benchmark.key));
+            document.querySelectorAll('#lifeSpreadBondGroup button').forEach(btn => btn.classList.toggle('active', btn.dataset.spreadBond === spreadBond.key));
             document.querySelectorAll('#lifeCurveTypeGroup button').forEach(btn => btn.classList.toggle('active', btn.dataset.curveType === lifeCurveType));
             const badge = document.getElementById('lifeChartBadge');
-            if (badge) badge.textContent = selectedName + ' · ' + tier.name;
+            if (badge) badge.textContent = selectedName + ' · ' + (benchmark.shortName || benchmark.name) + ' / ' + (spreadBond.shortName || spreadBond.name);
 
             const summaryTerms = ['1Y', '10Y', '20Y', '30Y'];
             document.getElementById('lifeSummary').innerHTML = summaryTerms.map(term => {
@@ -2771,9 +2809,10 @@
             const keyTerms = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '40Y', '50Y'];
             document.getElementById('lifeKeyBody').innerHTML = keyTerms.map(term => {
                 const base = lifeValue(baseRow, term);
+                const premium = lifeValue(premiumRow, term);
                 const spot = lifeValue(spotRow, term);
                 const fwd = lifeValue(forwardRow, term);
-                return '<tr><td>' + term + '</td><td>' + (base != null ? base.toFixed(4) : '—') + '</td><td>' + (spot != null ? spot.toFixed(4) : '—') + '</td><td>' + (fwd != null ? fwd.toFixed(4) : '—') + '</td></tr>';
+                return '<tr><td>' + term + '</td><td>' + (base != null ? base.toFixed(4) : '—') + '</td><td>' + (premium != null ? premium.toFixed(4) : '—') + '</td><td>' + (spot != null ? spot.toFixed(4) : '—') + '</td><td>' + (fwd != null ? fwd.toFixed(4) : '—') + '</td></tr>';
             }).join('');
 
             if (!lifeDiscountChart) lifeDiscountChart = echarts.init(document.getElementById('lifeDiscountChart'));
@@ -2800,14 +2839,15 @@
         function downloadLifeDiscountExcel() {
             if (!lifeDiscountData) return;
             const dateIdx = lifeDiscountData.dates.indexOf(lifeSelectedDate);
-            const tier = lifeDiscountData.tiers.find(t => t.key === lifeSelectedTier) || lifeDiscountData.tiers[0];
-            const { baseRow, spotRow, forwardRow } = getLifeRows(dateIdx, tier);
-            const rows = [['日期', lifeSelectedDate], ['业务类型', tier.name], [], ['期限', '基础利率(%)', '即期折现率(%)', '远期折现率(%)']];
-            for (let i = 0; i < lifeDiscountData.terms.length; i++) rows.push([lifeDiscountData.terms[i], baseRow[i], spotRow[i], forwardRow[i]]);
+            const benchmark = lifeDiscountData.benchmarks.find(item => item.key === lifeSelectedBenchmark) || lifeDiscountData.benchmarks[0];
+            const spreadBond = lifeDiscountData.spreadBonds.find(item => item.key === lifeSelectedSpreadBond) || lifeDiscountData.spreadBonds[0];
+            const { baseRow, premiumRow, spotRow, forwardRow } = getLifeRows(dateIdx, benchmark.key, spreadBond.key);
+            const rows = [['日期', lifeSelectedDate], ['标的利率曲线', benchmark.name], ['溢价债券', spreadBond.name], [], ['期限', '基础利率(%)', '综合溢价(%)', '即期折现率(%)', '远期折现率(%)']];
+            for (let i = 0; i < lifeDiscountData.terms.length; i++) rows.push([lifeDiscountData.terms[i], baseRow[i], premiumRow[i], spotRow[i], forwardRow[i]]);
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.aoa_to_sheet(rows);
             XLSX.utils.book_append_sheet(wb, ws, '溢价评估利率');
-            XLSX.writeFile(wb, '寿险合同负债评估折现率_' + lifeSelectedDate + '_' + tier.key + '.xlsx');
+            XLSX.writeFile(wb, '寿险合同负债评估折现率_' + lifeSelectedDate + '_' + benchmark.key + '_' + spreadBond.key + '.xlsx');
         }
 
         const PRESET_POLICY_NAMES = { mean: '三者均值', cdb: '国开债', adb: '农发行债', exim: '进出口行债' };
@@ -3076,9 +3116,14 @@
                 lifeSelectedDate = this.value;
                 renderLifeDiscountView();
             });
-            document.getElementById('lifeTierGroup').addEventListener('click', function(e) {
-                if (!e.target || !e.target.dataset.tier) return;
-                lifeSelectedTier = e.target.dataset.tier;
+            document.getElementById('lifeBenchmarkGroup').addEventListener('click', function(e) {
+                if (!e.target || !e.target.dataset.benchmark) return;
+                lifeSelectedBenchmark = e.target.dataset.benchmark;
+                renderLifeDiscountView();
+            });
+            document.getElementById('lifeSpreadBondGroup').addEventListener('click', function(e) {
+                if (!e.target || !e.target.dataset.spreadBond) return;
+                lifeSelectedSpreadBond = e.target.dataset.spreadBond;
                 renderLifeDiscountView();
             });
             document.getElementById('lifeCurveTypeGroup').addEventListener('click', function(e) {
