@@ -61,16 +61,29 @@ class LifeDiscountTests(unittest.TestCase):
         self.assertAlmostEqual(base["40Y"], 4.5, places=8)
         self.assertAlmostEqual(base["50Y"], 4.5, places=8)
 
-    def test_life_discount_spot_adds_named_product_premium(self):
+    def test_accounting_premium_curve_uses_front_spread_long_spread_and_interpolation(self):
+        benchmark = {f"{year}Y": 2.0 for year in range(1, 51)}
+        benchmark["50Y"] = 3.2
+        spread_bond = {f"{year}Y": 2.4 for year in range(1, 21)}
+        spread_bond["20Y"] = 2.8
+
+        premium = ci_update.build_accounting_premium_curve(benchmark, spread_bond)
+
+        self.assertAlmostEqual(premium["10Y"], 0.4, places=8)
+        self.assertAlmostEqual(premium["20Y"], 0.8, places=8)
+        self.assertAlmostEqual(premium["30Y"], 1.0, places=8)
+        self.assertAlmostEqual(premium["40Y"], 1.2, places=8)
+        self.assertAlmostEqual(premium["50Y"], 1.2, places=8)
+
+    def test_life_discount_spot_adds_accounting_premium_curve(self):
         base = {f"{year}Y": 2.0 for year in range(1, 51)}
-        tier = next(t for t in ci_update.LIFE_PREMIUM_TIERS if t["key"] == "high_rate_legacy")
+        premium = {f"{year}Y": 0.25 for year in range(1, 51)}
 
-        spot = ci_update.build_life_discount_spot_curve(base, tier)
+        spot = ci_update.build_life_discount_spot_curve(base, premium)
 
-        self.assertEqual(tier["name"], "1999年（含）之前签发的高利率保单")
-        self.assertAlmostEqual(spot["10Y"], 2.75, places=8)
-        self.assertAlmostEqual(spot["30Y"], 2.375, places=8)
-        self.assertAlmostEqual(spot["40Y"], 2.0, places=8)
+        self.assertAlmostEqual(spot["10Y"], 2.25, places=8)
+        self.assertAlmostEqual(spot["30Y"], 2.25, places=8)
+        self.assertAlmostEqual(spot["40Y"], 2.25, places=8)
 
     def test_forward_rates_are_derived_from_spot_discount_rates(self):
         spot = {"1Y": 2.0, "2Y": 3.0, "3Y": 4.0}
@@ -81,37 +94,55 @@ class LifeDiscountTests(unittest.TestCase):
         self.assertAlmostEqual(forward["1Y"], 2.0, places=8)
         self.assertAlmostEqual(forward["2Y"], expected_2y, places=8)
 
-    def test_life_discount_data_uses_existing_gov_spot_rows_only(self):
+    def test_life_discount_data_keeps_benchmark_and_spread_rows_for_accounting_rule(self):
         terms = [f"{year}Y" for year in range(1, 51)]
-        rows = [[2.0 for _ in terms] for _ in range(750)]
+        spread_terms = [f"{year}Y" for year in range(1, 21)]
+        gov_rows = [[2.0 for _ in terms] for _ in range(750)]
+        cdb_rows = [[2.2 for _ in terms] for _ in range(750)]
+        rail_rows = [[2.5 for _ in spread_terms] for _ in range(750)]
         dates = [f"2024-01-{(i % 28) + 1:02d}" for i in range(750)]
         dates[-1] = "2026-07-15"
-        gov_data = {"dates": dates, "terms": terms, "rows": rows}
+        benchmark_data = {
+            "gov_spot": {"dates": dates, "terms": terms, "rows": gov_rows},
+            "cdb_spot": {"dates": dates, "terms": terms, "rows": cdb_rows},
+        }
+        spread_bond_data = {
+            "rail_spot": {"dates": dates, "terms": spread_terms, "rows": rail_rows},
+        }
 
-        output = ci_update.build_life_discount_data(gov_data)
+        output = ci_update.build_life_discount_data(benchmark_data, spread_bond_data)
 
         self.assertEqual(output["dates"], ["2026-07-15"])
         self.assertEqual(output["terms"], terms)
-        self.assertEqual(len(output["tiers"]), 3)
+        self.assertEqual(output["spreadTerms"], spread_terms)
+        self.assertEqual([item["key"] for item in output["benchmarks"]], ["gov_spot", "cdb_spot"])
+        self.assertEqual([item["key"] for item in output["spreadBonds"]], ["rail_spot"])
         self.assertNotIn("curves", output)
-        self.assertAlmostEqual(output["baseRows"][0][19], 2.0, places=8)
-        self.assertAlmostEqual(output["baseRows"][0][39], 4.5, places=8)
-        other = next(tier for tier in output["tiers"] if tier["key"] == "other_products")
-        spot = ci_update.build_life_discount_spot_curve(
-            dict(zip(output["terms"], output["baseRows"][0])),
-            other,
-        )
-        self.assertAlmostEqual(spot["1Y"], 2.45, places=8)
+        self.assertAlmostEqual(output["baseRows"]["gov_spot"][0][19], 2.0, places=8)
+        self.assertAlmostEqual(output["baseRows"]["gov_spot"][0][39], 4.5, places=8)
+        self.assertAlmostEqual(output["benchmarkRows"]["cdb_spot"][0][0], 2.2, places=8)
+        self.assertAlmostEqual(output["spreadBondRows"]["rail_spot"][0][0], 2.5, places=8)
 
     def test_life_discount_data_schema_is_compact(self):
         terms = [f"{year}Y" for year in range(1, 51)]
+        spread_terms = [f"{year}Y" for year in range(1, 21)]
         rows = [[2.0 for _ in terms] for _ in range(750)]
-        gov_data = {"dates": [f"2024-01-{(i % 28) + 1:02d}" for i in range(750)], "terms": terms, "rows": rows}
+        spread_rows = [[2.4 for _ in spread_terms] for _ in range(750)]
+        dates = [f"2024-01-{(i % 28) + 1:02d}" for i in range(750)]
 
-        output = ci_update.build_life_discount_data(gov_data)
+        output = ci_update.build_life_discount_data(
+            {
+                "gov_spot": {"dates": dates, "terms": terms, "rows": rows},
+                "cdb_spot": {"dates": dates, "terms": terms, "rows": rows},
+            },
+            {"rail_spot": {"dates": dates, "terms": spread_terms, "rows": spread_rows}},
+        )
 
-        self.assertEqual(output["meta"]["schemaVersion"], 2)
-        self.assertEqual(set(output.keys()), {"meta", "dates", "terms", "tiers", "baseRows"})
+        self.assertEqual(output["meta"]["schemaVersion"], 3)
+        self.assertEqual(
+            set(output.keys()),
+            {"meta", "dates", "terms", "spreadTerms", "benchmarks", "spreadBonds", "baseRows", "benchmarkRows", "spreadBondRows"},
+        )
 
 
 class PresetModelTests(unittest.TestCase):
