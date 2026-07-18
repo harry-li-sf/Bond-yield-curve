@@ -17,15 +17,29 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("showBaseSection('gov_spot')", text)
         self.assertIn("else showBaseSection();", text)
 
-    def test_section_toggle_is_pinned_in_header_actions(self):
+    def test_section_toggle_is_parallel_with_title_and_bonds_are_below_title(self):
         text = INDEX.read_text(encoding="utf-8")
         self.assertIn('class="header-actions"', text)
-        self.assertIn(".header-actions .section-toggle { order: 2; }", text)
-        self.assertIn(".header-actions .bond-toggle { order: 1; }", text)
+        self.assertIn('<div class="header-actions">', text)
+        self.assertIn('<div class="bond-toggle" id="bondToggle">', text)
+        self.assertIn(".bond-toggle { grid-column: 1; grid-row: 2;", text)
+
+    def test_base_summary_is_above_all_detail_charts(self):
+        text = INDEX.read_text(encoding="utf-8")
+        summary_index = text.index('id="bondSummaryCard"')
+        first_grid_index = text.index('<div class="grid-2">')
+        chart_index = text.index('id="curveChart"')
+        self.assertLess(summary_index, first_grid_index)
+        self.assertLess(summary_index, chart_index)
 
     def test_overview_back_button_is_hidden_from_base_detail(self):
         text = INDEX.read_text(encoding="utf-8")
         self.assertIn(".btn-back { display: none;", text)
+
+    def test_tooltips_show_on_mouse_move_not_click(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn("triggerOn: 'mousemove|click'", text)
+        self.assertNotIn("triggerOn: 'click'", text)
 
 
 if __name__ == "__main__":
