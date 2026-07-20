@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>公式与数据源说明 - 预定利率研究值模型</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; color: #182235; background: #f4f7fb; }
+    .page { max-width: 1120px; margin: 0 auto; padding: 20px; }
+    header, section { background: #fff; border: 1px solid #dfe7f2; border-radius: 8px; box-shadow: 0 2px 10px rgba(20, 38, 70, .05); }
+    header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 18px; margin-bottom: 16px; }
+    h1 { margin: 0; font-size: 22px; }
+    h2 { margin: 0 0 12px; font-size: 17px; }
+    p, li { line-height: 1.75; color: #304259; }
+    .meta { color: #5f6f86; font-size: 13px; }
+    .back { border: 1px solid #b8c9dc; border-radius: 6px; padding: 7px 11px; color: #24547d; background: #f7fbff; font-weight: 700; text-decoration: none; white-space: nowrap; }
+    section { padding: 18px; margin-bottom: 16px; }
+    .formula { padding: 12px; border: 1px solid #dce8f5; border-radius: 6px; background: #f0f5fb; color: #163a5d; font-weight: 700; line-height: 1.7; }
+    .note { padding: 12px; border: 1px solid #f0d69c; border-radius: 6px; background: #fff8e5; color: #6f520d; line-height: 1.7; }
+    .term-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+    .term { padding: 12px; border: 1px solid #dfe7f2; border-radius: 8px; background: #f8fafc; }
+    .term strong { display: block; margin-bottom: 6px; color: #163a5d; }
+    a { color: #1d4ed8; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
+    th, td { border-bottom: 1px solid #e5ebf3; padding: 9px 10px; text-align: left; vertical-align: top; }
+    th { color: #36516e; background: #f3f7fc; }
+    ul { margin: 8px 0 0 18px; padding: 0; }
+    @media (max-width: 760px) { .term-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 560px) { .page { padding: 12px; } header { display: block; } .back { display: inline-flex; margin-top: 12px; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <div>
+        <h1>公式与数据源说明</h1>
+        <div class="meta">说明第三板块模型从哪里取数、如何计算、哪些项目需要人工维护。</div>
+      </div>
+      <a class="back" href="index.html#preset">返回预定利率研究值</a>
+    </header>
+
+    <section>
+      <h2>核心公式</h2>
+      <div class="formula">预定利率研究值 = Min【(5 年期 LPR + 六大行 5 年定期存款利率均值的 6 个月移动平均) / 2，基础回报水平】 × 调整系数</div>
+      <p>第三板块展示的“模型预测值”是上面公式中 Min【负债端利率锚，资产端回报（基础回报水平）】这一部分，暂未乘以调整系数。</p>
+      <div class="note">调整系数通常需要结合行业资产负债管理情况、经营发展情况、市场利率趋势等综合判断，无法仅靠公开利率数据稳定自动化。因此本页面结果更适合作为市场利率跟踪、触发监测和内部研究参考，不等同于最终监管或协会发布值。</div>
+      <div class="term-grid">
+        <div class="term">
+          <strong>负债端利率锚</strong>
+          按“5 年期以上 LPR”和“六大行 5 年定期存款利率均值”的 6 个月移动平均计算，再除以 2。
+        </div>
+        <div class="term">
+          <strong>资产端回报（基础回报水平）</strong>
+          用 10 年期政策性金融债到期收益率作为可自动化观测口径，计算 250 日、750 日移动平均并取低。
+        </div>
+      </div>
+      <p>政策性金融债支持国开债、农发行债、进出口行债和三者均值切换。</p>
+    </section>
+
+    <section>
+      <h2>数据来源与维护方式</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>数据项</th><th>用途</th><th>来源或维护方式</th><th>网站名称和网址</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>10 年期国债到期收益率</td>
+              <td>保留为研究对照，也对应原始公式中基础回报水平的国债部分。</td>
+              <td>第三板块数据来自本仓库的本地文件 <code>preset_model_data.js</code>；该文件由公开模型数据转换生成。</td>
+              <td>中债收益率曲线：<a href="https://yield.chinabond.com.cn/cbweb-mn/yield_main?locale=zh_CN" target="_blank" rel="noopener">https://yield.chinabond.com.cn/cbweb-mn/yield_main?locale=zh_CN</a></td>
+            </tr>
+            <tr>
+              <td>10 年期政策性金融债到期收益率</td>
+              <td>用于资产端回报（基础回报水平）和历史走势图。</td>
+              <td>支持国开债、农发行债、进出口行债、三者均值切换。</td>
+              <td>中债收益率曲线：<a href="https://yield.chinabond.com.cn/cbweb-mn/yield_main?locale=zh_CN" target="_blank" rel="noopener">https://yield.chinabond.com.cn/cbweb-mn/yield_main?locale=zh_CN</a></td>
+            </tr>
+            <tr>
+              <td>5 年期以上 LPR</td>
+              <td>参与负债端利率锚计算。</td>
+              <td>由模型数据维护表按日期取当时有效值。</td>
+              <td>中国货币网 LPR：<a href="https://www.chinamoney.com.cn/chinese/bklpr/" target="_blank" rel="noopener">https://www.chinamoney.com.cn/chinese/bklpr/</a></td>
+            </tr>
+            <tr>
+              <td>六大行 5 年定期存款利率均值</td>
+              <td>参与负债端利率锚计算。</td>
+              <td>由模型数据维护表记录六大行 5 年期挂牌利率并取均值。</td>
+              <td>工商银行、农业银行、中国银行、建设银行、邮储银行、交通银行官网人民币存款利率页面。</td>
+            </tr>
+            <tr>
+              <td>协会实际研究值</td>
+              <td>用于展示实际值，并与模型预测值做历史回测误差比较。</td>
+              <td>由模型数据维护表记录季度、基准日和实际值。</td>
+              <td>中国保险行业协会官网：<a href="https://www.iachina.cn/" target="_blank" rel="noopener">https://www.iachina.cn/</a></td>
+            </tr>
+            <tr>
+              <td>普通型预定利率上限</td>
+              <td>用于触发监测，计算“当前上限 - 模型预测值”。</td>
+              <td>页面当前维护 2024-09-01 起 2.5%、2025-09-01 起 2.0% 两条事件。</td>
+              <td>监管或行业公告；当前说明参考人身险产品预定利率调整相关公开公告。</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>口径边界</h2>
+      <ul>
+        <li>首页“模型预测值”不是完整的最终预定利率研究值，因为未乘以调整系数。</li>
+        <li>政策性金融债收益率用于自动化监测“国债收益率 + 税收溢价”的近似口径。</li>
+        <li>人工维护项目包括 LPR、六大行 5 年定存、协会实际研究值、普通型预定利率上限。</li>
+        <li>本说明页和第三板块均使用本仓库内的静态文件，不在用户浏览网页时调用外部 GitHub 仓库。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>自动更新流程</h2>
+      <ul>
+        <li>若运行完整 GitHub Actions，脚本会生成基础曲线数据、溢价评估利率数据和第三板块数据。</li>
+        <li>若只想更新第三板块，可以单独替换 <code>preset_model_data.js</code>，不会重新抓取前两个板块的 18 组债券曲线。</li>
+        <li>网页发布后，第三板块读取的是本仓库里的 <code>preset_model_data.js</code>。</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
