@@ -64,11 +64,10 @@
         .view-controls .date-picker { display: flex; align-items: center; gap: 6px; }
         .view-controls .date-picker select { padding: 4px 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; font-size: 13px; max-width: 180px; }
         .view-controls .date-picker label { font-size: 13px; font-weight: 500; color: #3e5a7a; }
-        .bond-toggle { grid-column: 1; grid-row: 2; justify-self: start; display: inline-flex; flex-wrap: wrap; gap: 2px; background: #eef3fa; border-radius: 12px; padding: 3px; }
-        .bond-toggle button { border: none; background: transparent; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; color: #3e5a7a; cursor: pointer; transition: 0.2s; white-space: nowrap; }
-        .bond-toggle button.active { background: #1f4a7a; color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
-        .bond-toggle button:hover:not(.active) { background: rgba(255,255,255,0.6); }
-        .bond-toggle button:disabled { opacity: 0.5; cursor: wait; }
+        .bond-selector { grid-column: 1; grid-row: 2; justify-self: start; display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; background: #eef3fa; border-radius: 12px; padding: 6px 8px; }
+        .bond-selector label { font-size: 12px; font-weight: 600; color: #3e5a7a; }
+        .bond-selector select { padding: 4px 8px; border-radius: 7px; border: 1px solid #c7d5e5; background: #fff; font-size: 12px; color: #1a2b44; }
+        .bond-selector select:disabled { opacity: 0.6; cursor: wait; }
         /* 总览视图：铺满两排 2×2 */
         .container.overview-mode { max-width: 1400px; margin: 0 auto; }
         .view-overview { min-height: calc(100vh - 170px); display: flex; flex-direction: column; }
@@ -121,7 +120,7 @@
         .play-btn.paused { background: #27ae60; }
         .play-btn.paused:hover { background: #1e8449; }
         @media (max-width: 1024px) { .grid-2 { grid-template-columns: 1fr; } }
-        @media (max-width: 900px) { .header-card { grid-template-columns: 1fr; } .header-actions { grid-column: 1; grid-row: 2; justify-content: flex-start; } .bond-toggle { grid-row: 3; } .subtitle { grid-row: 4; } h1 { white-space: normal; } }
+        @media (max-width: 900px) { .header-card { grid-template-columns: 1fr; } .header-actions { grid-column: 1; grid-row: 2; justify-content: flex-start; } .bond-selector { grid-row: 3; } .subtitle { grid-row: 4; } h1 { white-space: normal; } }
         @media (max-width: 640px) { body { padding: 12px; } .card { padding: 14px; } .chart-box { height: 220px; } .chart-box.tall { height: 260px; } .table-wrap { font-size: 12px; } .table-wrap th, .table-wrap td { padding: 5px 6px; } .upload-area { width: 100%; justify-content: flex-start; flex-wrap: wrap; } .date-selector select { max-width: 120px; } .metrics-row { gap: 8px 16px; padding: 8px 12px; } .metric-value { font-size: 16px; } .dash-terms { grid-template-columns: repeat(2, 1fr); gap: 6px; } .term-cell { padding: 10px 2px; } .term-val { font-size: clamp(14px, 3.6vw, 18px); } .term-label { font-size: 11px; margin-bottom: 4px; } .term-chg { font-size: clamp(9px, 2.6vw, 12px); margin-top: 4px; } }
         @media (max-width: 380px) { .dash-terms { grid-template-columns: repeat(2, 1fr); } .term-val { font-size: clamp(13px, 4.2vw, 17px); } }
         .table-wrap::-webkit-scrollbar { height: 6px; }
@@ -213,11 +212,14 @@
                     <button data-section="preset">预定利率研究值</button>
                 </div>
             </div>
-            <div class="bond-toggle" id="bondToggle">
-                <button class="active" data-bond="gov_spot">国债即期</button>
-                <button data-bond="gov_ytm">国债到期</button>
-                <button data-bond="cdb_spot">国开即期</button>
-                <button data-bond="cdb_ytm">国开到期</button>
+            <div class="bond-selector" id="bondSelector">
+                <label for="bondCurveSelect">债券种类</label>
+                <select id="bondCurveSelect"></select>
+                <label for="bondRateTypeSelect">曲线口径</label>
+                <select id="bondRateTypeSelect">
+                    <option value="spot">即期</option>
+                    <option value="ytm">到期</option>
+                </select>
             </div>
             <div class="subtitle">
                 <span>
@@ -235,7 +237,7 @@
         </div>
 
         <!-- 总览视图 -->
-        <div class="view-overview" id="viewOverview">
+        <div class="view-overview" id="viewOverview" style="display:none;">
             <div class="dashboard" id="dashboard">
                 <div class="dash-grid" id="dashGrid"></div>
             </div>
@@ -434,22 +436,22 @@
                 <div class="premium-toolbar">
                     <label for="lifeDateSelect">评估日期</label>
                     <select id="lifeDateSelect"></select>
-                    <label>标的利率曲线</label>
-                    <div class="premium-btn-group" id="lifeBenchmarkGroup"></div>
-                    <label>溢价债券</label>
-                    <div class="premium-btn-group" id="lifeSpreadBondGroup"></div>
-                    <label>长期溢价口径</label>
-                    <div class="premium-btn-group" id="lifeLongPremiumGroup">
-                        <button data-long-premium="40y">40年标的溢价</button>
-                        <button class="active" data-long-premium="50y">50年标的溢价</button>
-                        <button data-long-premium="avg_40_50">40-50年平均</button>
-                    </div>
-                    <label>曲线</label>
-                    <div class="premium-btn-group" id="lifeCurveTypeGroup">
-                        <button class="active" data-curve-type="spot">即期折现率</button>
-                        <button data-curve-type="forward">远期折现率</button>
-                        <button data-curve-type="premium">综合溢价</button>
-                    </div>
+                    <label for="lifeBenchmarkSelect">标的利率曲线</label>
+                    <select id="lifeBenchmarkSelect"></select>
+                    <label for="lifeSpreadBondSelect">溢价债券</label>
+                    <select id="lifeSpreadBondSelect"></select>
+                    <label for="lifeLongPremiumSelect">长期溢价口径</label>
+                    <select id="lifeLongPremiumSelect">
+                        <option value="40y">40年标的溢价</option>
+                        <option value="50y" selected>50年标的溢价</option>
+                        <option value="avg_40_50">40-50年平均</option>
+                    </select>
+                    <label for="lifeCurveTypeSelect">曲线</label>
+                    <select id="lifeCurveTypeSelect">
+                        <option value="spot" selected>即期折现率</option>
+                        <option value="forward">远期折现率</option>
+                        <option value="premium">综合溢价</option>
+                    </select>
                 </div>
                 <div class="premium-summary" id="lifeSummary"></div>
                 <div class="grid-2">
@@ -711,17 +713,36 @@
         const bondShortNames = Object.fromEntries(BOND_CONFIGS.map(cfg => [cfg.key, cfg.shortName]));
         function bondName() { return bondNames[currentBondType]; }
         function bondShortName() { return bondShortNames[currentBondType]; }
-        function renderBondToggleButtons() {
-            const toggle = document.getElementById('bondToggle');
-            if (!toggle) return;
-            toggle.innerHTML = '';
-            BOND_CONFIGS.forEach(cfg => {
-                const btn = document.createElement('button');
-                btn.dataset.bond = cfg.key;
-                btn.textContent = cfg.name.replace(/^中债/, '').replace(/^中国/, '');
-                btn.className = cfg.key === currentBondType ? 'active' : '';
-                toggle.appendChild(btn);
-            });
+        function bondCurveKeyFromDataset(key) {
+            return key.replace(/_(spot|ytm)$/, '');
+        }
+
+        function bondRateTypeFromDataset(key) {
+            return key.endsWith('_ytm') ? 'ytm' : 'spot';
+        }
+
+        function bondDatasetKey(curveKey, rateType) {
+            return curveKey + '_' + rateType;
+        }
+
+        function renderBondSelectors() {
+            const curveSelect = document.getElementById('bondCurveSelect');
+            const rateTypeSelect = document.getElementById('bondRateTypeSelect');
+            if (!curveSelect || !rateTypeSelect) return;
+            if (curveSelect.options.length === 0) {
+                const seen = new Set();
+                for (const cfg of BOND_CONFIGS) {
+                    const curveKey = bondCurveKeyFromDataset(cfg.key);
+                    if (seen.has(curveKey)) continue;
+                    seen.add(curveKey);
+                    const opt = document.createElement('option');
+                    opt.value = curveKey;
+                    opt.textContent = cfg.shortName;
+                    curveSelect.appendChild(opt);
+                }
+            }
+            curveSelect.value = bondCurveKeyFromDataset(currentBondType);
+            rateTypeSelect.value = bondRateTypeFromDataset(currentBondType);
         }
         const KEY_TERMS = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y'];
         let selectedDate = null;
@@ -2677,8 +2698,8 @@
             document.querySelectorAll('#sectionToggle button').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.section === section);
             });
-            const bondToggle = document.getElementById('bondToggle');
-            if (bondToggle) bondToggle.style.display = section === 'base' ? 'inline-flex' : 'none';
+            const bondSelector = document.getElementById('bondSelector');
+            if (bondSelector) bondSelector.style.display = section === 'base' ? 'inline-flex' : 'none';
         }
 
         async function showPremiumSection() {
@@ -2714,26 +2735,31 @@
                 }
                 dateSelect.value = lifeSelectedDate;
             }
-            const benchmarkGroup = document.getElementById('lifeBenchmarkGroup');
-            if (benchmarkGroup && benchmarkGroup.children.length === 0) {
+            const benchmarkSelect = document.getElementById('lifeBenchmarkSelect');
+            if (benchmarkSelect && benchmarkSelect.options.length === 0) {
                 for (const benchmark of lifeDiscountData.benchmarks) {
-                    const btn = document.createElement('button');
-                    btn.dataset.benchmark = benchmark.key;
-                    btn.textContent = benchmark.shortName || benchmark.name;
-                    btn.className = benchmark.key === lifeSelectedBenchmark ? 'active' : '';
-                    benchmarkGroup.appendChild(btn);
+                    const opt = document.createElement('option');
+                    opt.value = benchmark.key;
+                    opt.textContent = benchmark.shortName || benchmark.name;
+                    benchmarkSelect.appendChild(opt);
                 }
             }
-            const spreadBondGroup = document.getElementById('lifeSpreadBondGroup');
-            if (spreadBondGroup && spreadBondGroup.children.length === 0) {
+            if (benchmarkSelect) benchmarkSelect.value = lifeSelectedBenchmark;
+
+            const spreadBondSelect = document.getElementById('lifeSpreadBondSelect');
+            if (spreadBondSelect && spreadBondSelect.options.length === 0) {
                 for (const bond of lifeDiscountData.spreadBonds) {
-                    const btn = document.createElement('button');
-                    btn.dataset.spreadBond = bond.key;
-                    btn.textContent = bond.shortName || bond.name;
-                    btn.className = bond.key === lifeSelectedSpreadBond ? 'active' : '';
-                    spreadBondGroup.appendChild(btn);
+                    const opt = document.createElement('option');
+                    opt.value = bond.key;
+                    opt.textContent = bond.shortName || bond.name;
+                    spreadBondSelect.appendChild(opt);
                 }
             }
+            if (spreadBondSelect) spreadBondSelect.value = lifeSelectedSpreadBond;
+            const longPremiumSelect = document.getElementById('lifeLongPremiumSelect');
+            if (longPremiumSelect) longPremiumSelect.value = lifeLongPremiumMode;
+            const curveTypeSelect = document.getElementById('lifeCurveTypeSelect');
+            if (curveTypeSelect) curveTypeSelect.value = lifeCurveType;
         }
 
         function lifeRowAt(rows, idx) {
@@ -2850,10 +2876,14 @@
             const x = terms.map(t => parseFloat(t));
             const selectedName = lifeCurveType === 'premium' ? '综合溢价' : (lifeCurveType === 'forward' ? '远期折现率' : '即期折现率');
 
-            document.querySelectorAll('#lifeBenchmarkGroup button').forEach(btn => btn.classList.toggle('active', btn.dataset.benchmark === benchmark.key));
-            document.querySelectorAll('#lifeSpreadBondGroup button').forEach(btn => btn.classList.toggle('active', btn.dataset.spreadBond === spreadBond.key));
-            document.querySelectorAll('#lifeLongPremiumGroup button').forEach(btn => btn.classList.toggle('active', btn.dataset.longPremium === lifeLongPremiumMode));
-            document.querySelectorAll('#lifeCurveTypeGroup button').forEach(btn => btn.classList.toggle('active', btn.dataset.curveType === lifeCurveType));
+            const benchmarkSelect = document.getElementById('lifeBenchmarkSelect');
+            const spreadBondSelect = document.getElementById('lifeSpreadBondSelect');
+            const longPremiumSelect = document.getElementById('lifeLongPremiumSelect');
+            const curveTypeSelect = document.getElementById('lifeCurveTypeSelect');
+            if (benchmarkSelect) benchmarkSelect.value = benchmark.key;
+            if (spreadBondSelect) spreadBondSelect.value = spreadBond.key;
+            if (longPremiumSelect) longPremiumSelect.value = lifeLongPremiumMode;
+            if (curveTypeSelect) curveTypeSelect.value = lifeCurveType;
             const badge = document.getElementById('lifeChartBadge');
             if (badge) badge.textContent = selectedName + ' · ' + (benchmark.shortName || benchmark.name) + ' / ' + (spreadBond.shortName || spreadBond.name) + ' / ' + lifeLongPremiumModeName();
 
@@ -3167,7 +3197,7 @@
         // 初始化
         // ================================================================
         function setupEventListeners() {
-            renderBondToggleButtons();
+            renderBondSelectors();
             document.querySelectorAll('#sectionToggle button').forEach(btn => {
                 btn.addEventListener('click', function() {
                     if (this.dataset.section === 'premium') showPremiumSection();
@@ -3175,28 +3205,30 @@
                     else showBaseSection();
                 });
             });
+            document.getElementById('bondCurveSelect').addEventListener('change', function() {
+                showDetail(bondDatasetKey(this.value, document.getElementById('bondRateTypeSelect').value));
+            });
+            document.getElementById('bondRateTypeSelect').addEventListener('change', function() {
+                showDetail(bondDatasetKey(document.getElementById('bondCurveSelect').value, this.value));
+            });
             document.getElementById('lifeDateSelect').addEventListener('change', function() {
                 lifeSelectedDate = this.value;
                 renderLifeDiscountView();
             });
-            document.getElementById('lifeBenchmarkGroup').addEventListener('click', function(e) {
-                if (!e.target || !e.target.dataset.benchmark) return;
-                lifeSelectedBenchmark = e.target.dataset.benchmark;
+            document.getElementById('lifeBenchmarkSelect').addEventListener('change', function() {
+                lifeSelectedBenchmark = this.value;
                 renderLifeDiscountView();
             });
-            document.getElementById('lifeSpreadBondGroup').addEventListener('click', function(e) {
-                if (!e.target || !e.target.dataset.spreadBond) return;
-                lifeSelectedSpreadBond = e.target.dataset.spreadBond;
+            document.getElementById('lifeSpreadBondSelect').addEventListener('change', function() {
+                lifeSelectedSpreadBond = this.value;
                 renderLifeDiscountView();
             });
-            document.getElementById('lifeLongPremiumGroup').addEventListener('click', function(e) {
-                if (!e.target || !e.target.dataset.longPremium) return;
-                lifeLongPremiumMode = e.target.dataset.longPremium;
+            document.getElementById('lifeLongPremiumSelect').addEventListener('change', function() {
+                lifeLongPremiumMode = this.value;
                 renderLifeDiscountView();
             });
-            document.getElementById('lifeCurveTypeGroup').addEventListener('click', function(e) {
-                if (!e.target || !e.target.dataset.curveType) return;
-                lifeCurveType = e.target.dataset.curveType;
+            document.getElementById('lifeCurveTypeSelect').addEventListener('change', function() {
+                lifeCurveType = this.value;
                 renderLifeDiscountView();
             });
             document.getElementById('lifeDownloadBtn').addEventListener('click', downloadLifeDiscountExcel);
@@ -3328,13 +3360,6 @@
                 observer.observe(card, { attributes: true, attributeFilter: ['style', 'class'] });
             });
 
-            // 债券类型切换（从详情页内的 toggle 按钮）
-            document.querySelectorAll('#bondToggle button').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    if (this.classList.contains('active')) return;
-                    showDetail(this.dataset.bond);
-                });
-            });
         }
 
         async function switchBondType(type) {
@@ -3352,7 +3377,7 @@
                 const statusEl = document.getElementById('uploadStatus');
                 statusEl.textContent = '正在加载' + bondNames[type] + '数据...';
                 statusEl.style.color = '#f57c00';
-                document.querySelectorAll('#bondToggle button').forEach(b => b.disabled = true);
+                document.querySelectorAll('#bondCurveSelect, #bondRateTypeSelect').forEach(sel => sel.disabled = true);
                 try {
                     const resp = await fetch(bondFiles[type] + '?' + Date.now(), { cache: 'no-store' });
                     if (resp.ok) {
@@ -3366,7 +3391,7 @@
                     console.error('加载' + bondNames[type] + '数据失败:', e);
                 } finally {
                     bondLoading[type] = false;
-                    document.querySelectorAll('#bondToggle button').forEach(b => b.disabled = false);
+                    document.querySelectorAll('#bondCurveSelect, #bondRateTypeSelect').forEach(sel => sel.disabled = false);
                 }
             } else if (dataStores[type]) {
                 dataStore = dataStores[type];
@@ -3392,9 +3417,7 @@
         }
 
         function updateBondTypeUI() {
-            document.querySelectorAll('#bondToggle button').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.bond === currentBondType);
-            });
+            renderBondSelectors();
             document.querySelectorAll('.dash-card').forEach(card => {
                 card.classList.toggle('active', card.dataset.bond === currentBondType);
             });
