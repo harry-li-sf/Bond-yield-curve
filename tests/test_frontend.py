@@ -3,6 +3,7 @@ import unittest
 
 
 INDEX = Path("index.html")
+METHODOLOGY = Path("methodology.html")
 
 
 class FrontendTests(unittest.TestCase):
@@ -75,6 +76,18 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("renderPresetBacktest();", text)
         self.assertIn("普通型预定利率上限", text)
         self.assertIn("上限 - 模型预测值", text)
+
+    def test_preset_methodology_page_is_local_and_linked(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('href="methodology.html"', text)
+        self.assertIn('数据源说明', text)
+        self.assertTrue(METHODOLOGY.exists())
+        page = METHODOLOGY.read_text(encoding="utf-8")
+        self.assertIn("公式与数据源说明", page)
+        self.assertIn("预定利率研究值 = Min", page)
+        self.assertIn("中债收益率曲线", page)
+        self.assertIn("中国货币网 LPR", page)
+        self.assertIn("普通型预定利率上限", page)
 
 
 if __name__ == "__main__":
