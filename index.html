@@ -188,15 +188,31 @@
         .premium-summary-value { color: #102a43; font-size: 20px; font-weight: 800; font-family: 'SF Mono', 'Consolas', monospace; }
         .preset-toolbar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; padding: 12px 14px; background: #f6faff; border: 1px solid #dfe9f5; border-radius: 10px; margin-bottom: 14px; }
         .preset-toolbar label { font-size: 13px; font-weight: 600; color: #385574; }
-        .preset-summary { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .preset-summary { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; }
+        .preset-detail-summary { margin-bottom: 16px; }
         .preset-summary-item { background: #f8fbff; border: 1px solid #e0e9f2; border-radius: 10px; padding: 12px; min-height: 96px; }
+        .preset-summary-item.primary { border-color: #93c5fd; background: linear-gradient(180deg, #eff6ff 0%, #fff 78%); }
+        .preset-summary-item.actual { border-color: #86efac; background: linear-gradient(180deg, #f0fdf4 0%, #fff 78%); }
+        .preset-summary-item.warning { border-color: #fcd34d; background: linear-gradient(180deg, #fffbeb 0%, #fff 78%); }
+        .preset-summary-item.danger { border-color: #fca5a5; background: linear-gradient(180deg, #fff1f2 0%, #fff 78%); }
         .preset-summary-label { color: #6b7c96; font-size: 12px; font-weight: 600; margin-bottom: 8px; }
         .preset-summary-value { color: #102a43; font-size: 24px; font-weight: 800; font-family: 'SF Mono', 'Consolas', monospace; line-height: 1.1; }
+        .preset-summary-value.medium { font-size: 22px; }
         .preset-summary-sub { margin-top: 7px; color: #748197; font-size: 12px; line-height: 1.4; }
         .preset-notice { margin-bottom: 14px; padding: 10px 14px; border: 1px solid #f0d69c; border-radius: 8px; color: #6f520d; background: #fff8e5; font-size: 13px; }
         .preset-formula { display: grid; gap: 10px; color: #304259; font-size: 13px; line-height: 1.6; }
         .preset-formula code { display: block; padding: 10px; white-space: normal; color: #163a5d; background: #f0f5fb; border: 1px solid #dce8f5; border-radius: 6px; font-family: Consolas, 'Microsoft YaHei', monospace; }
+        .preset-trigger-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+        .preset-trigger-box { padding: 13px; border: 1px solid #dfe7f2; border-radius: 8px; background: #f8fafc; }
+        .preset-trigger-label { color: #607089; font-size: 13px; }
+        .preset-trigger-value { margin-top: 7px; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; color: #102a43; }
+        .preset-trigger-note { margin-top: 5px; color: #748197; font-size: 12px; line-height: 1.4; }
+        .preset-bar-track { height: 12px; margin-top: 14px; border-radius: 999px; background: #e5ebf3; overflow: hidden; }
+        .preset-bar-fill { height: 100%; width: 0%; border-radius: 999px; background: #1f5f99; transition: width .25s ease; }
+        .preset-bar-fill.warn { background: #d97706; }
+        .preset-bar-fill.danger { background: #dc2626; }
         @media (max-width: 980px) { .preset-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 768px) { .preset-trigger-grid { grid-template-columns: 1fr; } }
         @media (max-width: 560px) { .preset-summary { grid-template-columns: 1fr; } }
         @media (max-width: 768px) { .premium-summary { grid-template-columns: repeat(2, 1fr); } }
     </style>
@@ -493,7 +509,6 @@
                 <div class="card-title">
                     <span>预定利率研究值模型</span>
                     <span class="badge" id="presetUpdatedAt">等待数据更新</span>
-                    <button class="btn-download" id="presetExportBtn" style="font-size:11px;padding:3px 12px;">导出XLSX</button>
                 </div>
                 <div class="preset-notice" id="presetNotice" style="display:none;"></div>
                 <div class="preset-toolbar">
@@ -506,24 +521,63 @@
                     </div>
                 </div>
                 <div class="preset-summary" id="presetSummary"></div>
+                <div class="preset-summary preset-detail-summary" id="presetDetailSummary"></div>
                 <div class="grid-2">
                     <div class="card" style="box-shadow:none;border-color:#e5edf6;">
                         <div class="card-title">
                             <span>历史走势</span>
                             <span class="badge" id="presetChartBadge">三者均值</span>
+                            <button class="btn-download" id="presetExportBtn" style="font-size:11px;padding:3px 12px;margin-left:auto;">导出XLSX</button>
                         </div>
                         <div class="chart-box tall" id="presetModelChart"></div>
                     </div>
                     <div class="card" style="box-shadow:none;border-color:#e5edf6;">
                         <div class="card-title">
                             <span>公式口径</span>
-                            <span class="badge">模型测算研究值</span>
+                            <span class="badge">模型预测值</span>
                         </div>
                         <div class="preset-formula">
-                            <code>模型测算研究值 = MIN(负债端利率锚, 资产端回报（基础回报水平）)</code>
+                            <code>模型预测值 = MIN(负债端利率锚, 资产端回报（基础回报水平）)</code>
                             <code>负债端利率锚 = MA6(5年期以上LPR + 六大行5年定存均值) / 2</code>
                             <code>资产端回报（基础回报水平） = MIN(MA250(10年期政策性金融债到期收益率), MA750(10年期政策性金融债到期收益率))</code>
                         </div>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div class="card" style="box-shadow:none;border-color:#e5edf6;">
+                        <div class="card-title">
+                            <span>触发监测</span>
+                            <span class="badge" id="presetTriggerAsOf">按最新交易日测算</span>
+                        </div>
+                        <div class="preset-trigger-grid">
+                            <div class="preset-trigger-box">
+                                <div class="preset-trigger-label">当前普通型上限 - 模型预测值</div>
+                                <div class="preset-trigger-value" id="presetTriggerCurrentGap">—</div>
+                                <div class="preset-trigger-note">达到 25BP 通常意味着需要重点关注</div>
+                            </div>
+                            <div class="preset-trigger-box">
+                                <div class="preset-trigger-label">距离 25BP 触发线</div>
+                                <div class="preset-trigger-value" id="presetTriggerDistance">—</div>
+                                <div class="preset-trigger-note" id="presetTriggerDistanceNote">—</div>
+                            </div>
+                            <div class="preset-trigger-box">
+                                <div class="preset-trigger-label">监测状态</div>
+                                <div class="preset-trigger-value" id="presetTriggerStatus">—</div>
+                                <div class="preset-trigger-note">仅作研究监测，不代表正式调整结论</div>
+                            </div>
+                        </div>
+                        <div class="preset-bar-track" aria-label="触发线进度">
+                            <div class="preset-bar-fill" id="presetTriggerBarFill"></div>
+                        </div>
+                        <div class="footnote" id="presetTriggerBarText">—</div>
+                    </div>
+                    <div class="card" style="box-shadow:none;border-color:#e5edf6;">
+                        <div class="card-title">
+                            <span>历史回测</span>
+                            <span class="badge">误差单位 BP</span>
+                        </div>
+                        <div class="footnote" id="presetBacktestSummary" style="margin-top:0;">用协会实际值和模型预测值比较，误差单位为 BP</div>
+                        <div class="table-wrap" id="presetBacktestWrap"></div>
                     </div>
                 </div>
                 <div class="card" style="box-shadow:none;border-color:#e5edf6;margin-top:16px;">
@@ -538,7 +592,7 @@
                                     <th>季度</th>
                                     <th>基准日</th>
                                     <th>协会实际值</th>
-                                    <th>模型测算值</th>
+                                    <th>模型预测值</th>
                                     <th>负债端利率锚</th>
                                     <th>资产端回报</th>
                                     <th>实际-模型</th>
@@ -2943,6 +2997,11 @@
         const PRESET_ASSET_FIELD = { mean: 'assetBaseReturn_mean', cdb: 'assetBaseReturn_cdb', adb: 'assetBaseReturn_adb', exim: 'assetBaseReturn_exim' };
         const PRESET_MA250_FIELD = { mean: 'policy10yMa250_mean', cdb: 'policy10yMa250_cdb', adb: 'policy10yMa250_adb', exim: 'policy10yMa250_exim' };
         const PRESET_MA750_FIELD = { mean: 'policy10yMa750_mean', cdb: 'policy10yMa750_cdb', adb: 'policy10yMa750_adb', exim: 'policy10yMa750_exim' };
+        const PRESET_TRIGGER_THRESHOLD_BP = 25;
+        const PRESET_ORDINARY_MAX_RATE_EVENTS = [
+            { date: '2024-09-01', value: 2.5, source: '国家金融监督管理总局金发〔2024〕18号' },
+            { date: '2025-09-01', value: 2.0, source: '人身险公司产品预定利率调整公告' }
+        ];
 
         function presetFinite(v) {
             return typeof v === 'number' && Number.isFinite(v);
@@ -2954,6 +3013,39 @@
 
         function presetBp(v) {
             return presetFinite(v) ? (v > 0 ? '+' : '') + v.toFixed(1) + 'bp' : '—';
+        }
+
+        function presetAbsBp(v) {
+            return presetFinite(v) ? Math.abs(v).toFixed(1) + 'bp' : '—';
+        }
+
+        function presetLatestActual() {
+            const values = presetModelData?.actualValues || [];
+            return values.length ? values[values.length - 1] : null;
+        }
+
+        function presetOrdinaryMaxRateForDate(date) {
+            if (!date) return null;
+            let current = PRESET_ORDINARY_MAX_RATE_EVENTS[0];
+            PRESET_ORDINARY_MAX_RATE_EVENTS.forEach(item => {
+                if (item.date <= date) current = item;
+            });
+            return current || null;
+        }
+
+        function presetTriggerInfo(row) {
+            if (!row) return null;
+            const model = presetComputedModel(row);
+            const maxRate = presetOrdinaryMaxRateForDate(row.date);
+            if (!presetFinite(model) || !maxRate) return null;
+            const gapBp = (maxRate.value - model) * 100;
+            return { model, maxRate, gapBp, distanceBp: PRESET_TRIGGER_THRESHOLD_BP - gapBp };
+        }
+
+        function presetSummaryCardHtml(item) {
+            const cls = item.cls ? ' ' + item.cls : '';
+            const valueCls = item.medium ? ' medium' : '';
+            return '<div class="preset-summary-item' + cls + '"><div class="preset-summary-label">' + item.label + '</div><div class="preset-summary-value' + valueCls + '">' + item.value + '</div><div class="preset-summary-sub">' + item.sub + '</div></div>';
         }
 
         function presetExportValue(v) {
@@ -3019,11 +3111,14 @@
             if (!presetModelData) return;
             const rows = presetModelData.series || [];
             const latest = presetLatestUsableRow(rows);
+            const actual = presetLatestActual();
+            const actualRow = actual ? presetNearestRow(actual.asOfDate) : null;
+            const actualModel = actualRow ? presetComputedModel(actualRow) : null;
+            const trigger = presetTriggerInfo(latest);
             const model = presetComputedModel(latest);
             const liability = latest ? latest.liabilityAnchor : null;
             const asset = latest ? latest[PRESET_ASSET_FIELD[presetPolicy]] : null;
             const policyValue = latest ? latest[PRESET_POLICY_FIELD[presetPolicy]] : null;
-            const binding = presetFinite(liability) && presetFinite(asset) ? (liability <= asset ? '负债端' : '资产端') : '—';
 
             document.getElementById('presetUpdatedAt').textContent = presetModelData.updatedAt ? '数据更新：' + presetModelData.updatedAt : '等待数据更新';
             document.getElementById('presetChartBadge').textContent = PRESET_POLICY_NAMES[presetPolicy];
@@ -3039,17 +3134,28 @@
             }
 
             const summary = [
-                ['模型测算研究值', presetPct(model), latest ? latest.date : '—'],
-                ['负债端利率锚', presetPct(liability), '6个月移动平均'],
-                ['资产端回报', presetPct(asset), 'MA250与MA750取低'],
-                ['触发约束', binding, '取两端较低者'],
-                ['最新政策债10Y', presetPct(policyValue), PRESET_POLICY_NAMES[presetPolicy]]
+                { label: '模型预测值', value: presetPct(model), sub: latest ? '截至 ' + latest.date : '首次运行 Actions 后生成', cls: 'primary' },
+                { label: '协会最新实际值', value: actual ? presetPct(actual.value) : '—', sub: actual ? actual.quarter + '，基准日 ' + actual.asOfDate : '人工维护', cls: 'actual' },
+                { label: '普通型预定利率上限', value: trigger ? presetPct(trigger.maxRate.value) : '—', sub: trigger ? trigger.maxRate.date + ' 起，人工维护' : '人工维护' },
+                { label: '上限 - 模型预测值', value: trigger ? presetBp(trigger.gapBp) : '—', sub: trigger ? '距离 25BP 触发线 ' + presetBp(trigger.distanceBp) : '距离 25BP 触发线 —', cls: trigger && trigger.gapBp >= PRESET_TRIGGER_THRESHOLD_BP ? 'danger' : 'warning', medium: true }
             ];
             document.getElementById('presetSummary').innerHTML = summary.map(item =>
-                '<div class="preset-summary-item"><div class="preset-summary-label">' + item[0] + '</div><div class="preset-summary-value">' + item[1] + '</div><div class="preset-summary-sub">' + item[2] + '</div></div>'
+                presetSummaryCardHtml(item)
+            ).join('');
+
+            const detailSummary = [
+                { label: '负债端利率锚', value: presetPct(liability), sub: 'LPR 与六大行 5 年定存均值的 6 个月移动平均' },
+                { label: '资产端回报（基础回报水平）', value: presetPct(asset), sub: 'MA250 与 MA750 取低' },
+                { label: '预测 - 实际', value: actual && presetFinite(actualModel) ? presetBp((actualModel - actual.value) * 100) : '—', sub: actual ? actual.quarter + ' 回测误差' : '按最新协会实际值回测', medium: true },
+                { label: '最新政策债 10Y', value: presetPct(policyValue), sub: PRESET_POLICY_NAMES[presetPolicy] }
+            ];
+            document.getElementById('presetDetailSummary').innerHTML = detailSummary.map(item =>
+                presetSummaryCardHtml(item)
             ).join('');
 
             renderPresetModelChart(rows);
+            renderPresetTriggerMonitor();
+            renderPresetBacktest();
             renderPresetCalibration();
         }
 
@@ -3076,7 +3182,7 @@
                 yAxis: { type: 'value', scale: true, axisLabel: { formatter: '{value}%' } },
                 dataZoom: [{ type: 'inside' }, { type: 'slider', height: 20, bottom: 8 }],
                 series: [
-                    { name: '模型测算研究值', type: 'line', showSymbol: false, data: modelSeries, lineStyle: { width: 2.4 } },
+                    { name: '模型预测值', type: 'line', showSymbol: false, data: modelSeries, lineStyle: { width: 2.4 } },
                     { name: '负债端利率锚', type: 'line', showSymbol: false, data: liabilitySeries },
                     { name: '5年期以上LPR', type: 'line', showSymbol: false, data: lprSeries, lineStyle: { type: 'dotted' } },
                     { name: '六大行5年定存均值', type: 'line', showSymbol: false, data: depositSeries, lineStyle: { type: 'dotted' } },
@@ -3106,9 +3212,77 @@
             }).join('');
         }
 
+        function renderPresetTriggerMonitor() {
+            const rows = presetModelData.series || [];
+            const latest = presetLatestUsableRow(rows);
+            const info = presetTriggerInfo(latest);
+            const asOf = document.getElementById('presetTriggerAsOf');
+            const currentGap = document.getElementById('presetTriggerCurrentGap');
+            const distance = document.getElementById('presetTriggerDistance');
+            const distanceNote = document.getElementById('presetTriggerDistanceNote');
+            const status = document.getElementById('presetTriggerStatus');
+            const fill = document.getElementById('presetTriggerBarFill');
+            const barText = document.getElementById('presetTriggerBarText');
+            if (!latest || !info) {
+                asOf.textContent = '暂无可用数据';
+                currentGap.textContent = '—';
+                distance.textContent = '—';
+                distanceNote.textContent = '等待最新数据';
+                status.textContent = '—';
+                fill.style.width = '0%';
+                fill.classList.remove('warn', 'danger');
+                barText.textContent = '—';
+                return;
+            }
+            const progress = Math.max(0, Math.min(100, (info.gapBp / PRESET_TRIGGER_THRESHOLD_BP) * 100));
+            let label = '未触发';
+            let note = '还差 ' + presetBp(info.distanceBp) + ' 到 25BP 触发线';
+            fill.classList.remove('warn', 'danger');
+            if (info.gapBp >= PRESET_TRIGGER_THRESHOLD_BP) {
+                label = '已达触发线';
+                note = '已超过触发线 ' + presetBp(Math.abs(info.distanceBp));
+                fill.classList.add('danger');
+            } else if (info.gapBp >= PRESET_TRIGGER_THRESHOLD_BP * 0.8) {
+                label = '接近触发线';
+                fill.classList.add('warn');
+            }
+            asOf.textContent = '截至 ' + latest.date + '，普通型上限口径来源：' + info.maxRate.source;
+            currentGap.textContent = presetBp(info.gapBp);
+            distance.textContent = presetBp(info.distanceBp);
+            distanceNote.textContent = note;
+            status.textContent = label;
+            fill.style.width = progress.toFixed(0) + '%';
+            barText.textContent = '触发线进度 ' + progress.toFixed(0) + '%，触发线为 25BP。';
+        }
+
+        function renderPresetBacktest() {
+            const actuals = presetModelData.actualValues || [];
+            const rows = actuals.map(item => {
+                const row = presetNearestRow(item.asOfDate);
+                const model = row ? presetComputedModel(row) : null;
+                const errorBp = presetFinite(model) ? (model - item.value) * 100 : null;
+                return { ...item, matchedDate: row?.date, model, errorBp };
+            }).filter(item => presetFinite(item.model));
+            const summary = document.getElementById('presetBacktestSummary');
+            const wrap = document.getElementById('presetBacktestWrap');
+            if (!rows.length) {
+                summary.textContent = '暂无协会实际值，无法回测。';
+                wrap.innerHTML = '';
+                return;
+            }
+            const avgAbs = rows.reduce((sum, item) => sum + Math.abs(item.errorBp), 0) / rows.length;
+            const latest = rows[rows.length - 1];
+            summary.textContent = '已回测 ' + rows.length + ' 个协会实际值，平均绝对误差 ' + avgAbs.toFixed(1) + 'BP；最新一期误差 ' + presetBp(latest.errorBp) + '。';
+            wrap.innerHTML = '<table><thead><tr><th>季度</th><th>基准日</th><th>协会实际值</th><th>模型预测值</th><th>模型-实际</th><th>绝对误差</th></tr></thead><tbody>' +
+                rows.map(item =>
+                    '<tr><td>' + item.quarter + '</td><td>' + item.asOfDate + '</td><td>' + presetPct(item.value) + '</td><td>' + presetPct(item.model) + '</td><td>' + presetBp(item.errorBp) + '</td><td>' + presetAbsBp(item.errorBp) + '</td></tr>'
+                ).join('') +
+                '</tbody></table>';
+        }
+
         function downloadPresetModelExcel() {
             if (!presetModelData) return;
-            const headers = ['日期', '政策性金融债口径', '模型测算研究值', '负债端利率锚', '资产端回报（基础回报水平）', 'MA250(10年期政策性金融债到期收益率)', 'MA750(10年期政策性金融债到期收益率)', '10年期政策性金融债到期收益率', '协会实际值', '实际-模型(bp)', '5年期以上LPR', '六大行5年定存均值', '国债10Y', '国开债10Y', '农发行债10Y', '进出口行债10Y'];
+            const headers = ['日期', '政策性金融债口径', '模型预测值', '负债端利率锚', '资产端回报（基础回报水平）', 'MA250(10年期政策性金融债到期收益率)', 'MA750(10年期政策性金融债到期收益率)', '10年期政策性金融债到期收益率', '协会实际值', '实际-模型(bp)', '5年期以上LPR', '六大行5年定存均值', '国债10Y', '国开债10Y', '农发行债10Y', '进出口行债10Y'];
             const rows = [headers];
             for (const row of presetModelData.series || []) {
                 const model = presetComputedModel(row);
