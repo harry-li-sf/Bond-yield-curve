@@ -60,6 +60,22 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("triggerOn: 'mousemove|click'", text)
         self.assertNotIn("triggerOn: 'click'", text)
 
+    def test_preset_section_matches_updated_reference_layout(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('id="presetDetailSummary"', text)
+        self.assertIn('id="presetTriggerAsOf"', text)
+        self.assertIn('id="presetTriggerCurrentGap"', text)
+        self.assertIn('id="presetTriggerDistance"', text)
+        self.assertIn('id="presetTriggerStatus"', text)
+        self.assertIn('id="presetBacktestSummary"', text)
+        self.assertIn('id="presetBacktestWrap"', text)
+        self.assertIn("PRESET_ORDINARY_MAX_RATE_EVENTS", text)
+        self.assertIn("PRESET_TRIGGER_THRESHOLD_BP = 25", text)
+        self.assertIn("renderPresetTriggerMonitor();", text)
+        self.assertIn("renderPresetBacktest();", text)
+        self.assertIn("普通型预定利率上限", text)
+        self.assertIn("上限 - 模型预测值", text)
+
 
 if __name__ == "__main__":
     unittest.main()
