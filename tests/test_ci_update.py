@@ -75,6 +75,26 @@ class LifeDiscountTests(unittest.TestCase):
         self.assertAlmostEqual(premium["40Y"], 1.2, places=8)
         self.assertAlmostEqual(premium["50Y"], 1.2, places=8)
 
+    def test_accounting_premium_curve_supports_selectable_terminal_spread_modes(self):
+        benchmark = {f"{year}Y": 2.0 for year in range(1, 51)}
+        benchmark["40Y"] = 2.6
+        benchmark["50Y"] = 3.2
+        for year in range(41, 50):
+            benchmark[f"{year}Y"] = 2.6 + (3.2 - 2.6) * (year - 40) / 10
+        spread_bond = {f"{year}Y": 2.4 for year in range(1, 21)}
+        spread_bond["20Y"] = 2.8
+
+        premium40 = ci_update.build_accounting_premium_curve(benchmark, spread_bond, "40y")
+        premium50 = ci_update.build_accounting_premium_curve(benchmark, spread_bond, "50y")
+        premium_avg = ci_update.build_accounting_premium_curve(benchmark, spread_bond, "avg_40_50")
+
+        self.assertAlmostEqual(premium40["40Y"], 0.6, places=8)
+        self.assertAlmostEqual(premium40["30Y"], 0.7, places=8)
+        self.assertAlmostEqual(premium50["40Y"], 1.2, places=8)
+        self.assertAlmostEqual(premium50["30Y"], 1.0, places=8)
+        self.assertAlmostEqual(premium_avg["40Y"], 0.9, places=8)
+        self.assertAlmostEqual(premium_avg["30Y"], 0.85, places=8)
+
     def test_life_discount_spot_adds_accounting_premium_curve(self):
         base = {f"{year}Y": 2.0 for year in range(1, 51)}
         premium = {f"{year}Y": 0.25 for year in range(1, 51)}
