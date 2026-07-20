@@ -11,6 +11,15 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("fetch('life_discount.json', { cache: 'force-cache' })", text)
         self.assertNotIn("life_discount.json?' + Date.now()", text)
 
+    def test_life_discount_premium_controls_include_terminal_spread_and_premium_curve(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('id="lifeLongPremiumGroup"', text)
+        self.assertIn('data-long-premium="40y"', text)
+        self.assertIn('data-long-premium="50y"', text)
+        self.assertIn('data-long-premium="avg_40_50"', text)
+        self.assertIn('data-curve-type="premium"', text)
+        self.assertIn("lifeCurveType === 'premium'", text)
+
     def test_base_section_defaults_to_government_spot_detail(self):
         text = INDEX.read_text(encoding="utf-8")
         self.assertIn("async function showBaseSection(type)", text)
