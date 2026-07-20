@@ -13,11 +13,14 @@ class FrontendTests(unittest.TestCase):
 
     def test_life_discount_premium_controls_include_terminal_spread_and_premium_curve(self):
         text = INDEX.read_text(encoding="utf-8")
-        self.assertIn('id="lifeLongPremiumGroup"', text)
-        self.assertIn('data-long-premium="40y"', text)
-        self.assertIn('data-long-premium="50y"', text)
-        self.assertIn('data-long-premium="avg_40_50"', text)
-        self.assertIn('data-curve-type="premium"', text)
+        self.assertIn('id="lifeBenchmarkSelect"', text)
+        self.assertIn('id="lifeSpreadBondSelect"', text)
+        self.assertIn('id="lifeLongPremiumSelect"', text)
+        self.assertIn('id="lifeCurveTypeSelect"', text)
+        self.assertIn('<option value="40y">40年标的溢价</option>', text)
+        self.assertIn('<option value="50y" selected>50年标的溢价</option>', text)
+        self.assertIn('<option value="avg_40_50">40-50年平均</option>', text)
+        self.assertIn('<option value="premium">综合溢价</option>', text)
         self.assertIn("lifeCurveType === 'premium'", text)
 
     def test_base_section_defaults_to_government_spot_detail(self):
@@ -26,12 +29,19 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("showBaseSection('gov_spot')", text)
         self.assertIn("else showBaseSection();", text)
 
-    def test_section_toggle_is_parallel_with_title_and_bonds_are_below_title(self):
+    def test_section_toggle_is_parallel_with_title_and_bond_selects_are_below_title(self):
         text = INDEX.read_text(encoding="utf-8")
         self.assertIn('class="header-actions"', text)
         self.assertIn('<div class="header-actions">', text)
-        self.assertIn('<div class="bond-toggle" id="bondToggle">', text)
-        self.assertIn(".bond-toggle { grid-column: 1; grid-row: 2;", text)
+        self.assertIn('<div class="bond-selector" id="bondSelector">', text)
+        self.assertIn('id="bondCurveSelect"', text)
+        self.assertIn('id="bondRateTypeSelect"', text)
+        self.assertIn(".bond-selector { grid-column: 1; grid-row: 2;", text)
+        self.assertNotIn('<button class="active" data-bond="gov_spot"', text)
+
+    def test_overview_does_not_flash_before_default_base_detail(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('<div class="view-overview" id="viewOverview" style="display:none;">', text)
 
     def test_base_summary_is_above_all_detail_charts(self):
         text = INDEX.read_text(encoding="utf-8")
