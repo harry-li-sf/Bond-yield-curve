@@ -37,6 +37,12 @@ LIFE_ULTIMATE_RATE = 4.5
 LIFE_BENCHMARK_KEYS = ["gov_spot", "cdb_spot"]
 LIFE_SHORT_SPREAD_TERM = "20Y"
 LIFE_LONG_SPREAD_TERM = "50Y"
+LIFE_LONG_PREMIUM_DEFAULT = "50y"
+LIFE_LONG_PREMIUM_OPTIONS = [
+    {"key": "40y", "name": "40年标的溢价"},
+    {"key": "50y", "name": "50年标的溢价"},
+    {"key": "avg_40_50", "name": "40-50年平均溢价"},
+]
 BJ_TZ = timezone(timedelta(hours=8))
 MAX_RETRIES = 3
 RETRY_DELAY = 3
@@ -494,9 +500,33 @@ def dataset_summary(dataset: DatasetConfig) -> dict:
     }
 
 
+def terminal_benchmark_spread(benchmark_rates: Dict[str, float], mode: str = LIFE_LONG_PREMIUM_DEFAULT) -> Optional[float]:
+    short_rate = benchmark_rates.get(LIFE_SHORT_SPREAD_TERM)
+    if short_rate is None:
+        return None
+
+    if mode == "40y":
+        long_rate = benchmark_rates.get("40Y")
+        return None if long_rate is None else float(long_rate) - float(short_rate)
+
+    if mode == "avg_40_50":
+        values = [
+            benchmark_rates.get(f"{year}Y")
+            for year in range(40, 51)
+        ]
+        if any(value is None for value in values):
+            return None
+        average_long_rate = sum(float(value) for value in values) / len(values)
+        return average_long_rate - float(short_rate)
+
+    long_rate = benchmark_rates.get(LIFE_LONG_SPREAD_TERM)
+    return None if long_rate is None else float(long_rate) - float(short_rate)
+
+
 def build_accounting_premium_curve(
     benchmark_rates: Dict[str, float],
     spread_bond_rates: Dict[str, float],
+    long_premium_mode: str = LIFE_LONG_PREMIUM_DEFAULT,
 ) -> Dict[str, float]:
     front_spreads: Dict[int, float] = {}
     for year in range(1, 21):
@@ -507,12 +537,10 @@ def build_accounting_premium_curve(
             front_spreads[year] = float(bond) - float(benchmark)
 
     spread20 = front_spreads.get(20)
-    short_rate = benchmark_rates.get(LIFE_SHORT_SPREAD_TERM)
-    long_rate = benchmark_rates.get(LIFE_LONG_SPREAD_TERM)
-    if spread20 is None or short_rate is None or long_rate is None:
+    spread40 = terminal_benchmark_spread(benchmark_rates, long_premium_mode)
+    if spread20 is None or spread40 is None:
         return {}
 
-    spread40 = float(long_rate) - float(short_rate)
     premium: Dict[str, float] = {}
     for year in range(1, 51):
         if year <= 20:
@@ -648,12 +676,14 @@ def build_life_discount_data(benchmark_data: Dict[str, dict], spread_bond_data: 
             "schemaVersion": LIFE_DISCOUNT_SCHEMA_VERSION,
             "source": "derived-from-local-curve-json",
             "baseRule": "750日移动平均标的即期收益率曲线 + 20-40年二次插值至4.5%终极利率",
-            "premiumRule": "前20年为选中债券即期曲线与标的即期曲线的利差；40年及以后为标的50Y与20Y利差；20-40年线性插值",
+            "premiumRule": "前20年为选中债券即期曲线与标的即期曲线的利差；40年及以后可选标的40Y-20Y、标的50Y-20Y或标的40-50Y平均利率-20Y；20-40年线性插值",
             "forwardRule": "F_t=((1+S_t)^t/(1+S_{t-1})^(t-1))-1",
             "maPeriod": LIFE_MA_PERIOD,
             "ultimateRate": LIFE_ULTIMATE_RATE,
             "shortSpreadTerm": LIFE_SHORT_SPREAD_TERM,
             "longSpreadTerm": LIFE_LONG_SPREAD_TERM,
+            "longPremiumDefault": LIFE_LONG_PREMIUM_DEFAULT,
+            "longPremiumOptions": LIFE_LONG_PREMIUM_OPTIONS,
         },
         "dates": usable_dates,
         "terms": LIFE_TERMS,
