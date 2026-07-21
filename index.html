@@ -456,6 +456,13 @@
                     <select id="lifeBenchmarkSelect"></select>
                     <label for="lifeSpreadBondSelect">溢价债券</label>
                     <select id="lifeSpreadBondSelect"></select>
+                    <label for="lifeFrontPremiumSelect">前20年溢价口径</label>
+                    <select id="lifeFrontPremiumSelect">
+                        <option value="yearly" selected>前20年逐年差额</option>
+                        <option value="10y">第10年溢价</option>
+                        <option value="20y">第20年溢价</option>
+                        <option value="avg_1_20">前20年平均溢价</option>
+                    </select>
                     <label for="lifeLongPremiumSelect">长期溢价口径</label>
                     <select id="lifeLongPremiumSelect">
                         <option value="40y">40年标的溢价</option>
@@ -817,6 +824,7 @@
         let lifeSelectedDate = null;
         let lifeSelectedBenchmark = 'gov_spot';
         let lifeSelectedSpreadBond = null;
+        let lifeFrontPremiumMode = 'yearly';
         let lifeLongPremiumMode = '50y';
         let lifeCurveType = 'spot';
         let presetModelData = null;
@@ -2811,6 +2819,8 @@
                 }
             }
             if (spreadBondSelect) spreadBondSelect.value = lifeSelectedSpreadBond;
+            const frontPremiumSelect = document.getElementById('lifeFrontPremiumSelect');
+            if (frontPremiumSelect) frontPremiumSelect.value = lifeFrontPremiumMode;
             const longPremiumSelect = document.getElementById('lifeLongPremiumSelect');
             if (longPremiumSelect) longPremiumSelect.value = lifeLongPremiumMode;
             const curveTypeSelect = document.getElementById('lifeCurveTypeSelect');
@@ -2865,25 +2875,57 @@
             return names[lifeLongPremiumMode] || names['50y'];
         }
 
+        function lifeFrontPremiumModeName() {
+            const names = {
+                'yearly': '前20年逐年差额',
+                '10y': '第10年溢价',
+                '20y': '第20年溢价',
+                'avg_1_20': '前20年平均溢价'
+            };
+            return names[lifeFrontPremiumMode] || names.yearly;
+        }
+
+        function lifeTermSpread(benchmarkRow, spreadBondRow, term) {
+            const bond = lifeSpreadValue(spreadBondRow, term);
+            const benchmark = lifeValue(benchmarkRow, term);
+            return bond != null && benchmark != null ? Number((bond - benchmark).toFixed(8)) : null;
+        }
+
+        function lifeFrontPremiumValue(benchmarkRow, spreadBondRow) {
+            if (lifeFrontPremiumMode === '10y') return lifeTermSpread(benchmarkRow, spreadBondRow, '10Y');
+            if (lifeFrontPremiumMode === '20y') return lifeTermSpread(benchmarkRow, spreadBondRow, '20Y');
+            if (lifeFrontPremiumMode === 'avg_1_20') {
+                let sum = 0;
+                let count = 0;
+                for (let year = 1; year <= 20; year++) {
+                    const spread = lifeTermSpread(benchmarkRow, spreadBondRow, year + 'Y');
+                    if (spread != null) {
+                        sum += spread;
+                        count++;
+                    }
+                }
+                return count > 0 ? Number((sum / count).toFixed(8)) : null;
+            }
+            return null;
+        }
+
         function buildLifePremiumRow(benchmarkRow, spreadBondRow) {
-            const shortTerm = lifeDiscountData.meta?.shortSpreadTerm || '20Y';
-            const shortBenchmark = lifeValue(benchmarkRow, shortTerm);
-            const spread20 = (() => {
-                const bond = lifeSpreadValue(spreadBondRow, shortTerm);
-                return bond != null && shortBenchmark != null ? bond - shortBenchmark : null;
-            })();
+            const spread20 = lifeTermSpread(benchmarkRow, spreadBondRow, lifeDiscountData.meta?.shortSpreadTerm || '20Y');
+            const frontPremium = lifeFrontPremiumMode === 'yearly' ? null : lifeFrontPremiumValue(benchmarkRow, spreadBondRow);
+            const interpolationStart = lifeFrontPremiumMode === 'yearly' ? spread20 : frontPremium;
             const spread40 = lifeTerminalBenchmarkSpread(benchmarkRow);
             return lifeDiscountData.terms.map(term => {
                 const year = parseInt(term, 10);
                 if (year <= 20) {
-                    const bond = lifeSpreadValue(spreadBondRow, term);
-                    const benchmark = lifeValue(benchmarkRow, term);
-                    return bond != null && benchmark != null ? Number((bond - benchmark).toFixed(8)) : null;
+                    if (lifeFrontPremiumMode !== 'yearly') {
+                        return frontPremium != null ? Number(frontPremium.toFixed(8)) : null;
+                    }
+                    return lifeTermSpread(benchmarkRow, spreadBondRow, term);
                 }
-                if (spread20 == null || spread40 == null) return null;
+                if (interpolationStart == null || spread40 == null) return null;
                 if (year < 40) {
                     const weight = (year - 20) / 20;
-                    return Number((spread20 + (spread40 - spread20) * weight).toFixed(8));
+                    return Number((interpolationStart + (spread40 - interpolationStart) * weight).toFixed(8));
                 }
                 return Number(spread40.toFixed(8));
             });
@@ -2933,14 +2975,16 @@
 
             const benchmarkSelect = document.getElementById('lifeBenchmarkSelect');
             const spreadBondSelect = document.getElementById('lifeSpreadBondSelect');
+            const frontPremiumSelect = document.getElementById('lifeFrontPremiumSelect');
             const longPremiumSelect = document.getElementById('lifeLongPremiumSelect');
             const curveTypeSelect = document.getElementById('lifeCurveTypeSelect');
             if (benchmarkSelect) benchmarkSelect.value = benchmark.key;
             if (spreadBondSelect) spreadBondSelect.value = spreadBond.key;
+            if (frontPremiumSelect) frontPremiumSelect.value = lifeFrontPremiumMode;
             if (longPremiumSelect) longPremiumSelect.value = lifeLongPremiumMode;
             if (curveTypeSelect) curveTypeSelect.value = lifeCurveType;
             const badge = document.getElementById('lifeChartBadge');
-            if (badge) badge.textContent = selectedName + ' · ' + (benchmark.shortName || benchmark.name) + ' / ' + (spreadBond.shortName || spreadBond.name) + ' / ' + lifeLongPremiumModeName();
+            if (badge) badge.textContent = selectedName + ' · ' + (benchmark.shortName || benchmark.name) + ' / ' + (spreadBond.shortName || spreadBond.name) + ' / ' + lifeFrontPremiumModeName() + ' / ' + lifeLongPremiumModeName();
 
             const summaryTerms = ['1Y', '10Y', '20Y', '30Y'];
             document.getElementById('lifeSummary').innerHTML = summaryTerms.map(term => {
@@ -2985,12 +3029,12 @@
             const benchmark = lifeDiscountData.benchmarks.find(item => item.key === lifeSelectedBenchmark) || lifeDiscountData.benchmarks[0];
             const spreadBond = lifeDiscountData.spreadBonds.find(item => item.key === lifeSelectedSpreadBond) || lifeDiscountData.spreadBonds[0];
             const { baseRow, premiumRow, spotRow, forwardRow } = getLifeRows(dateIdx, benchmark.key, spreadBond.key);
-            const rows = [['日期', lifeSelectedDate], ['标的利率曲线', benchmark.name], ['溢价债券', spreadBond.name], ['长期溢价口径', lifeLongPremiumModeName()], [], ['期限', '基础利率(%)', '综合溢价(%)', '即期折现率(%)', '远期折现率(%)']];
+            const rows = [['日期', lifeSelectedDate], ['标的利率曲线', benchmark.name], ['溢价债券', spreadBond.name], ['前20年溢价口径', lifeFrontPremiumModeName()], ['长期溢价口径', lifeLongPremiumModeName()], [], ['期限', '基础利率(%)', '综合溢价(%)', '即期折现率(%)', '远期折现率(%)']];
             for (let i = 0; i < lifeDiscountData.terms.length; i++) rows.push([lifeDiscountData.terms[i], baseRow[i], premiumRow[i], spotRow[i], forwardRow[i]]);
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.aoa_to_sheet(rows);
             XLSX.utils.book_append_sheet(wb, ws, '溢价评估利率');
-            XLSX.writeFile(wb, '寿险合同负债评估折现率_' + lifeSelectedDate + '_' + benchmark.key + '_' + spreadBond.key + '_' + lifeLongPremiumMode + '.xlsx');
+            XLSX.writeFile(wb, '寿险合同负债评估折现率_' + lifeSelectedDate + '_' + benchmark.key + '_' + spreadBond.key + '_' + lifeFrontPremiumMode + '_' + lifeLongPremiumMode + '.xlsx');
         }
 
         const PRESET_POLICY_NAMES = { mean: '三者均值', cdb: '国开债', adb: '农发行债', exim: '进出口行债' };
@@ -3396,6 +3440,10 @@
             });
             document.getElementById('lifeSpreadBondSelect').addEventListener('change', function() {
                 lifeSelectedSpreadBond = this.value;
+                renderLifeDiscountView();
+            });
+            document.getElementById('lifeFrontPremiumSelect').addEventListener('change', function() {
+                lifeFrontPremiumMode = this.value;
                 renderLifeDiscountView();
             });
             document.getElementById('lifeLongPremiumSelect').addEventListener('change', function() {
