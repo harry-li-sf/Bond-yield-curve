@@ -267,6 +267,16 @@
             <div class="card-title">
                 <span id="bondSummaryTitle">债券数据汇总</span>
                 <span class="badge" id="bondSummaryBadge">最新日期</span>
+                <div class="date-selector">
+                    <label for="baseRateBasisSelect" style="font-size:13px;font-weight:400;">口径：</label>
+                    <select id="baseRateBasisSelect">
+                        <option value="spot" selected>即期</option>
+                        <option value="ma750">750日平均</option>
+                        <option value="ma20">20日平均</option>
+                        <option value="ma30">30日平均</option>
+                        <option value="ma60">60日平均</option>
+                    </select>
+                </div>
             </div>
             <div class="metrics-row" id="metricsRow"></div>
         </div>
@@ -288,7 +298,7 @@
             <div class="card">
                 <div class="card-title">
                     <span>📋 关键期限利率</span>
-                    <span class="badge">所选日期 / 750日平均 · 变动比较</span>
+                    <span class="badge">所选口径 · 关键时点比较</span>
                     <div class="date-selector">
                         <label for="keyDateSelect" style="font-size:13px;font-weight:400;">查看日期：</label>
                         <select id="keyDateSelect"></select>
@@ -299,12 +309,13 @@
                         <thead>
                             <tr>
                                 <th>期限</th>
-                                <th>所选日 (%)</th>
-                                <th>750MA (%)</th>
-                                <th>所选-上月 (bp)</th>
-                                <th>750-上月 (bp)</th>
-                                <th>所选-上年 (bp)</th>
-                                <th>750-上年 (bp)</th>
+                                <th>所选口径 (%)</th>
+                                <th>上年度末 (%)</th>
+                                <th>上月末 (%)</th>
+                                <th>上日 (%)</th>
+                                <th>较上日 (bp)</th>
+                                <th>较上月末 (bp)</th>
+                                <th>较上年度末 (bp)</th>
                             </tr>
                         </thead>
                         <tbody id="keyTermsBody"></tbody>
@@ -379,6 +390,25 @@
                 <span>📆 历史关键时点对比</span>
                 <span class="badge">年末 / 月末 · 按列独立着色</span>
             </div>
+            <div class="ma-controls">
+                <label for="historyDiffFromSelect">对比日期A</label>
+                <select id="historyDiffFromSelect"></select>
+                <label for="historyDiffToSelect">对比日期B</label>
+                <select id="historyDiffToSelect"></select>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>期限</th>
+                            <th>日期A (%)</th>
+                            <th>日期B (%)</th>
+                            <th>B-A (bp)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyDiffBody"></tbody>
+                </table>
+            </div>
             <div class="table-wrap" id="historyTableWrap">
                 <table>
                     <thead id="historyHeader"></thead>
@@ -388,58 +418,6 @@
             <div class="footnote">每列独立着色（柔和热力图：低→淡绿，中→淡黄，高→淡红）</div>
         </div>
 
-        <!-- 第四行：移动平均分析 -->
-        <div class="grid-2" style="margin-top: 20px;">
-            <!-- 子图A：时间序列 -->
-            <div class="card">
-                <div class="card-title">
-                    <span>📊 移动平均 · 时间序列</span>
-                    <span class="badge">单期限 · 多MA周期</span>
-                </div>
-                <div class="ma-controls">
-                    <label>期限</label>
-                    <select id="maTermSelect"></select>
-                    <div class="ma-period-group" id="maPeriodGroupA"></div>
-                    <div class="ma-custom-row">
-                        <input type="number" id="maCustomInputA" placeholder="天数" min="1" max="5000">
-                        <button onclick="addMAPeriod('A')">+添加</button>
-                    </div>
-                </div>
-                <div class="chart-box tall" id="maTimeSeriesChart"></div>
-                <div class="footnote">选定期限的即期利率 vs 各周期移动平均，横轴为日期</div>
-            </div>
-            <!-- 子图B：期限曲线 -->
-            <div class="card">
-                <div class="card-title">
-                    <span>📊 移动平均 · 期限曲线</span>
-                    <span class="badge">单日期 · 多MA周期</span>
-                    <button class="btn-download" id="maCurveDownloadBtn" style="font-size:11px;padding:3px 12px;">📥 导出XLSX</button>
-                    <span class="ma-export-range">
-                        <select id="maCurveExportRange" title="导出范围">
-                            <option value="single">当前日期</option>
-                            <option value="full">全量</option>
-                            <option value="custom">自定义区间</option>
-                        </select>
-                        <span id="maCurveRangePickers" style="display:none;">
-                            <input type="date" id="maCurveFrom" title="起始日期">
-                            <span style="color:#8898b0;">~</span>
-                            <input type="date" id="maCurveTo" title="结束日期">
-                        </span>
-                    </span>
-                </div>
-                <div class="ma-controls">
-                    <label>日期</label>
-                    <select id="maDateSelect"></select>
-                    <div class="ma-period-group" id="maPeriodGroupB"></div>
-                    <div class="ma-custom-row">
-                        <input type="number" id="maCustomInputB" placeholder="天数" min="1" max="5000">
-                        <button onclick="addMAPeriod('B')">+添加</button>
-                    </div>
-                </div>
-                <div class="chart-box tall" id="maCurveChart"></div>
-                <div class="footnote">选定日期各期限的即期曲线 vs 各周期移动平均曲线</div>
-            </div>
-        </div>
         </div><!-- /view-detail -->
 
         <div class="view-premium" id="viewPremium" style="display:none;">
@@ -447,14 +425,13 @@
                 <div class="card-title">
                     <span>寿险合同负债评估折现率曲线</span>
                     <span class="badge">标的基础曲线 + 会计负债综合溢价</span>
-                    <button class="btn-download" id="lifeDownloadBtn" style="font-size:11px;padding:3px 12px;">导出XLSX</button>
                 </div>
                 <div class="premium-toolbar">
                     <label for="lifeDateSelect">评估日期</label>
                     <select id="lifeDateSelect"></select>
-                    <label for="lifeBenchmarkSelect">标的利率曲线</label>
+                    <label for="lifeBenchmarkSelect">基础曲线</label>
                     <select id="lifeBenchmarkSelect"></select>
-                    <label for="lifeSpreadBondSelect">溢价债券</label>
+                    <label for="lifeSpreadBondSelect">对比曲线</label>
                     <select id="lifeSpreadBondSelect"></select>
                     <label for="lifeFrontPremiumSelect">前20年溢价口径</label>
                     <select id="lifeFrontPremiumSelect">
@@ -469,44 +446,145 @@
                         <option value="50y" selected>50年标的溢价</option>
                         <option value="avg_40_50">40-50年平均</option>
                     </select>
-                    <label for="lifeCurveTypeSelect">曲线</label>
-                    <select id="lifeCurveTypeSelect">
-                        <option value="spot" selected>即期折现率</option>
-                        <option value="forward">远期折现率</option>
-                        <option value="premium">综合溢价</option>
-                    </select>
                 </div>
                 <div class="premium-summary" id="lifeSummary"></div>
                 <div class="grid-2">
                     <div class="card" style="box-shadow:none;border-color:#e5edf6;">
                         <div class="card-title">
                             <span>期限结构</span>
-                            <span class="badge" id="lifeChartBadge">即期折现率</span>
+                            <span class="badge" id="lifeChartBadge">综合溢价</span>
                         </div>
                         <div class="chart-box tall" id="lifeDiscountChart"></div>
-                        <div class="footnote">基础利率按选中标的曲线的750日移动平均即期收益率生成，20-40年过渡至4.5%终极利率；综合溢价按会计负债口径即时计算。</div>
+                        <div class="footnote">综合溢价由基础曲线与对比曲线的利差，以及长期国债期限利差按所选口径即时计算。</div>
                     </div>
                     <div class="card" style="box-shadow:none;border-color:#e5edf6;">
                         <div class="card-title">
                             <span>关键期限</span>
-                            <span class="badge">基础利率 / 综合溢价 / 即期 / 远期</span>
+                            <span class="badge">仅综合溢价</span>
                         </div>
                         <div class="table-wrap">
                             <table>
                                 <thead>
                                     <tr>
                                         <th>期限</th>
-                                        <th>基础利率(%)</th>
                                         <th>综合溢价(%)</th>
-                                        <th>即期折现率(%)</th>
-                                        <th>远期折现率(%)</th>
                                     </tr>
                                 </thead>
                                 <tbody id="lifeKeyBody"></tbody>
                             </table>
                         </div>
-                        <div class="footnote">远期折现率按 F_t=((1+S_t)^t/(1+S_{t-1})^(t-1))-1 由年度即期折现率换算。</div>
+                        <div class="footnote">表格跟随上方四个下拉框，展示当前综合溢价曲线的关键期限。</div>
                     </div>
+                </div>
+                <div class="grid-2">
+                    <div class="card" style="box-shadow:none;border-color:#e5edf6;">
+                        <div class="card-title">
+                            <span>综合溢价曲线对比</span>
+                            <span class="badge">上年度末 / 上月末 / 上日 / 所选日</span>
+                            <div class="date-selector">
+                                <label for="lifeDiffFromSelect" style="font-size:13px;font-weight:400;">日期A：</label>
+                                <select id="lifeDiffFromSelect"></select>
+                                <label for="lifeDiffToSelect" style="font-size:13px;font-weight:400;">日期B：</label>
+                                <select id="lifeDiffToSelect"></select>
+                            </div>
+                        </div>
+                        <div class="chart-box tall" id="lifeCompareChart"></div>
+                    </div>
+                    <div class="card" style="box-shadow:none;border-color:#e5edf6;">
+                        <div class="card-title">
+                            <span>综合溢价数据对比</span>
+                            <span class="badge">B-A，单位bp</span>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>期限</th>
+                                        <th>日期A (%)</th>
+                                        <th>日期B (%)</th>
+                                        <th>B-A (bp)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="lifeDiffBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-2" style="margin-top: 20px;">
+                <div class="card">
+                    <div class="card-title">
+                        <span>📊 移动平均 · 时间序列</span>
+                        <span class="badge">基础曲线 / 对比曲线</span>
+                    </div>
+                    <div class="ma-controls">
+                        <label>期限</label>
+                        <select id="maTermSelect"></select>
+                        <div class="ma-period-group" id="maPeriodGroupA"></div>
+                        <div class="ma-custom-row">
+                            <input type="number" id="maCustomInputA" placeholder="天数" min="1" max="5000">
+                            <button onclick="addMAPeriod('A')">+添加</button>
+                        </div>
+                    </div>
+                    <div class="chart-box tall" id="maTimeSeriesChart"></div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>基础曲线(%)</th>
+                                    <th>对比曲线(%)</th>
+                                    <th>差值(bp)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="maTimeSeriesBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="footnote">选定期限下，基础曲线与对比曲线同步展示。</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">
+                        <span>📊 移动平均 · 期限曲线</span>
+                        <span class="badge">基础曲线 / 对比曲线</span>
+                        <button class="btn-download" id="maCurveDownloadBtn" style="font-size:11px;padding:3px 12px;">📥 导出XLSX</button>
+                        <span class="ma-export-range">
+                            <select id="maCurveExportRange" title="导出范围">
+                                <option value="single">当前日期</option>
+                                <option value="full">全量</option>
+                                <option value="custom">自定义区间</option>
+                            </select>
+                            <span id="maCurveRangePickers" style="display:none;">
+                                <input type="date" id="maCurveFrom" title="起始日期">
+                                <span style="color:#8898b0;">~</span>
+                                <input type="date" id="maCurveTo" title="结束日期">
+                            </span>
+                        </span>
+                    </div>
+                    <div class="ma-controls">
+                        <label>日期</label>
+                        <select id="maDateSelect"></select>
+                        <div class="ma-period-group" id="maPeriodGroupB"></div>
+                        <div class="ma-custom-row">
+                            <input type="number" id="maCustomInputB" placeholder="天数" min="1" max="5000">
+                            <button onclick="addMAPeriod('B')">+添加</button>
+                        </div>
+                    </div>
+                    <div class="chart-box tall" id="maCurveChart"></div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>期限</th>
+                                    <th>基础曲线(%)</th>
+                                    <th>对比曲线(%)</th>
+                                    <th>差值(bp)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="maCurveBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="footnote">选定日期下，基础曲线与对比曲线按期限同步展示。</div>
                 </div>
             </div>
         </div>
@@ -808,6 +886,7 @@
         }
         const KEY_TERMS = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y'];
         let selectedDate = null;
+        let baseRateBasis = 'spot';
         let forecastDataAll = [];          // 所有预测数据（每天）
         let forecastAllDates = [];         // 所有预测日期（每天）
         let forecastMonthEndDates = [];    // 月末交易日列表（用于快照）
@@ -821,12 +900,12 @@
         let activeSection = 'base';
         let lifeDiscountData = null;
         let lifeDiscountChart = null;
+        let lifeCompareChart = null;
         let lifeSelectedDate = null;
         let lifeSelectedBenchmark = 'gov_spot';
         let lifeSelectedSpreadBond = null;
         let lifeFrontPremiumMode = 'yearly';
         let lifeLongPremiumMode = '50y';
-        let lifeCurveType = 'spot';
         let presetModelData = null;
         let presetModelChart = null;
         let presetPolicy = 'mean';
@@ -2087,6 +2166,281 @@
             };
         }
 
+        function basisLabel() {
+            const labels = {
+                spot: '即期',
+                ma750: '750日平均',
+                ma20: '20日平均',
+                ma30: '30日平均',
+                ma60: '60日平均'
+            };
+            return labels[baseRateBasis] || labels.spot;
+        }
+
+        function basisPeriod(basis = baseRateBasis) {
+            if (basis === 'ma750') return 750;
+            if (basis === 'ma20') return 20;
+            if (basis === 'ma30') return 30;
+            if (basis === 'ma60') return 60;
+            return null;
+        }
+
+        function getRatesForBasis(date, basis = baseRateBasis) {
+            const idx = dataStore.dates.indexOf(date);
+            if (idx === -1) return null;
+            const period = basisPeriod(basis);
+            if (!period) return dataStore.rates[idx];
+            return calcMAForDate(date, period);
+        }
+
+        function lastDateOnOrBefore(targetDate) {
+            let found = null;
+            for (const d of dataStore.dates) {
+                if (d <= targetDate) found = d;
+                else break;
+            }
+            return found;
+        }
+
+        function getSummaryDatesFor(targetDate) {
+            const dt = new Date(targetDate + 'T00:00:00Z');
+            const year = dt.getUTCFullYear();
+            const month = dt.getUTCMonth() + 1;
+            const quarterStartMonth = Math.floor((month - 1) / 3) * 3 + 1;
+            const prevQuarterMonth = quarterStartMonth - 1;
+            const prevQuarterYear = prevQuarterMonth === 0 ? year - 1 : year;
+            const prevQuarterEndMonth = prevQuarterMonth === 0 ? 12 : prevQuarterMonth;
+            const prevQuarterEnd = new Date(Date.UTC(prevQuarterYear, prevQuarterEndMonth, 0)).toISOString().slice(0, 10);
+            const prevMonthEnd = new Date(Date.UTC(year, month - 1, 0)).toISOString().slice(0, 10);
+            const lastYearEnd = (year - 1) + '-12-31';
+            const prevTrade = findPreviousTradeDate(dataStore.dates, targetDate);
+            return {
+                lastYearTrade: lastDateOnOrBefore(lastYearEnd),
+                lastQuarterTrade: lastDateOnOrBefore(prevQuarterEnd),
+                lastMonthTrade: lastDateOnOrBefore(prevMonthEnd),
+                prevTrade
+            };
+        }
+
+        function getCurveSelectableDates() {
+            const dates = dataStore.dates || [];
+            if (!dates.length) return [];
+            const latest = new Date((dataStore.latestDate || dates[dates.length - 1]) + 'T00:00:00Z');
+            const cutoffYear = latest.getUTCFullYear() - 25;
+            const selected = [];
+            let lastMonthKey = null;
+            let monthEndCandidate = null;
+            for (const d of dates) {
+                const dt = new Date(d + 'T00:00:00Z');
+                const key = dt.getUTCFullYear() + '-' + String(dt.getUTCMonth() + 1).padStart(2, '0');
+                if (dt.getUTCFullYear() < cutoffYear) {
+                    if (lastMonthKey !== null && key !== lastMonthKey && monthEndCandidate) selected.push(monthEndCandidate);
+                    lastMonthKey = key;
+                    monthEndCandidate = d;
+                } else {
+                    if (monthEndCandidate) {
+                        selected.push(monthEndCandidate);
+                        monthEndCandidate = null;
+                    }
+                    selected.push(d);
+                }
+            }
+            if (monthEndCandidate && !selected.includes(monthEndCandidate)) selected.push(monthEndCandidate);
+            return [...new Set(selected)];
+        }
+
+        function populateCurveDateSelector() {
+            const select1 = document.getElementById('curveDateSelect');
+            const select2 = document.getElementById('keyDateSelect');
+            const currentSelected = selectedDate || dataStore.latestDate;
+            const dates = getCurveSelectableDates();
+            [select1, select2].forEach(sel => {
+                if (!sel) return;
+                sel.innerHTML = '';
+                for (const d of dates) {
+                    const opt = document.createElement('option');
+                    opt.value = d;
+                    opt.textContent = d;
+                    if (d === currentSelected) opt.selected = true;
+                    sel.appendChild(opt);
+                }
+                if (![...sel.options].some(opt => opt.value === currentSelected)) {
+                    const opt = document.createElement('option');
+                    opt.value = currentSelected;
+                    opt.textContent = currentSelected;
+                    opt.selected = true;
+                    sel.appendChild(opt);
+                }
+            });
+        }
+
+        function populateDateSelectors() {
+            populateCurveDateSelector();
+            const currentSelected = selectedDate || dataStore.latestDate;
+            const allDates = dataStore.dates || [];
+            const historyFrom = document.getElementById('historyDiffFromSelect');
+            const historyTo = document.getElementById('historyDiffToSelect');
+            const prevDate = findPreviousTradeDate(allDates, currentSelected) || currentSelected;
+            [historyFrom, historyTo].forEach(sel => {
+                if (!sel) return;
+                sel.innerHTML = '';
+                for (const d of getCurveSelectableDates()) {
+                    const opt = document.createElement('option');
+                    opt.value = d;
+                    opt.textContent = d;
+                    sel.appendChild(opt);
+                }
+            });
+            if (historyFrom) historyFrom.value = prevDate;
+            if (historyTo) historyTo.value = currentSelected;
+            const onDateChange = function() {
+                selectedDate = this.value;
+                updateMetrics();
+                renderCurveChart();
+                renderKeyTermsTable();
+                renderHistoryDiffTable();
+                const peer = this.id === 'curveDateSelect' ? document.getElementById('keyDateSelect') : document.getElementById('curveDateSelect');
+                if (peer) peer.value = selectedDate;
+            };
+            const curveSelect = document.getElementById('curveDateSelect');
+            const keySelect = document.getElementById('keyDateSelect');
+            if (curveSelect) curveSelect.onchange = onDateChange;
+            if (keySelect) keySelect.onchange = onDateChange;
+            if (historyFrom) historyFrom.onchange = renderHistoryDiffTable;
+            if (historyTo) historyTo.onchange = renderHistoryDiffTable;
+        }
+
+        function updateMetrics() {
+            if (!dataStore || !dataStore.latestDate || !dataStore.dates || dataStore.dates.length === 0) return;
+            const targetDate = selectedDate || dataStore.latestDate;
+            const dates = getSummaryDatesFor(targetDate);
+            const dateItems = [
+                { label: '上年度末', date: dates.lastYearTrade },
+                { label: '上季度末', date: dates.lastQuarterTrade },
+                { label: '上月末', date: dates.lastMonthTrade },
+                { label: '上日', date: dates.prevTrade }
+            ];
+            const container = document.getElementById('metricsRow');
+            const title = document.getElementById('bondSummaryTitle');
+            const badge = document.getElementById('bondSummaryBadge');
+            if (title) title.textContent = bondName() + basisLabel() + '数据汇总';
+            if (badge) badge.textContent = targetDate + (targetDate === dataStore.latestDate ? ' 最新' : ' 所选');
+            const fmt = v => v !== null && v !== undefined && isFinite(v) ? v.toFixed(4) : '—';
+            container.innerHTML = dateItems.map(item => {
+                const row = item.date ? getRatesForBasis(item.date) : null;
+                const val = row ? sanitizeRate(row['10Y']) : null;
+                return '<div class="metric-item"><span class="metric-label">' + item.label + ' 10Y ' + basisLabel() + '</span><span class="metric-value">' + fmt(val) + '<span class="unit">%</span></span></div>';
+            }).join('');
+            const basisSelect = document.getElementById('baseRateBasisSelect');
+            if (basisSelect) basisSelect.value = baseRateBasis;
+        }
+
+        function renderCurveChart() {
+            if (!curveChart) curveChart = echarts.init(document.getElementById('curveChart'));
+            const targetDate = selectedDate || dataStore.latestDate;
+            const termsNumeric = allTerms.map(t => parseFloat(t));
+            const dates = getSummaryDatesFor(targetDate);
+            const compareItems = [
+                { name: '上年度末', date: dates.lastYearTrade, color: '#e74c3c', line: 'dashed' },
+                { name: '上月末', date: dates.lastMonthTrade, color: '#2ecc71', line: 'dashed' },
+                { name: '上日', date: dates.prevTrade, color: '#7a8ea8', line: 'dotted' },
+                { name: '所选日', date: targetDate, color: '#1f6fd9', line: 'solid' }
+            ].filter(item => item.date);
+            const series = compareItems.map(item => {
+                const row = getRatesForBasis(item.date);
+                const curve = row ? cleanArray(allTerms.map(t => row[t])) : [];
+                return {
+                    name: item.name + ' ' + basisLabel(),
+                    type: 'line',
+                    data: curve,
+                    smooth: true,
+                    symbol: item.name === '所选日' ? 'circle' : 'none',
+                    symbolSize: 5,
+                    lineStyle: { width: item.name === '所选日' ? 2.8 : 2, color: item.color, type: item.line },
+                    itemStyle: { color: item.color }
+                };
+            });
+            const { min, max } = calcYAxisRange(series.map(s => s.data));
+            curveChart.setOption(optimizeChartOption({
+                title: { text: bondName() + basisLabel() + '利率曲线 - ' + targetDate, left: 'center', top: 0, textStyle: { fontSize: 14, fontWeight: 'normal' } },
+                tooltip: lightweightTooltip({
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        let s = '期限: ' + params[0].axisValue + '年<br/>';
+                        for (const p of params) if (p.value !== null && p.value !== undefined) s += p.marker + ' ' + p.seriesName + ': ' + p.value.toFixed(4) + '%<br/>';
+                        return s;
+                    }
+                }),
+                legend: { top: 30, right: 10, textStyle: { fontSize: 11 } },
+                grid: { left: 50, right: 20, top: 70, bottom: 60 },
+                xAxis: { type: 'category', data: termsNumeric, name: '期限 (年)', nameLocation: 'center', nameGap: 25, axisLabel: { fontSize: 11 } },
+                yAxis: { type: 'value', name: '利率 (%)', nameLocation: 'center', nameGap: 35, axisLabel: { formatter: value => value.toFixed(2) + '%', fontSize: 11 }, min, max, boundaryGap: false },
+                series
+            }), true);
+            curveChart.resize();
+        }
+
+        function renderKeyTermsTable() {
+            const tbody = document.getElementById('keyTermsBody');
+            const targetDate = selectedDate || dataStore.latestDate;
+            const dates = getSummaryDatesFor(targetDate);
+            const targetRates = getRatesForBasis(targetDate);
+            const lastYearRates = dates.lastYearTrade ? getRatesForBasis(dates.lastYearTrade) : null;
+            const lastMonthRates = dates.lastMonthTrade ? getRatesForBasis(dates.lastMonthTrade) : null;
+            const prevRates = dates.prevTrade ? getRatesForBasis(dates.prevTrade) : null;
+            const keys = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', '1-10Y', '1-15Y', '1-20Y', '21-40Y'];
+            const labels = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', '1-10Y平均', '1-15Y平均', '1-20Y平均', '21-40Y平均'];
+            function value(row, key) {
+                if (!row) return null;
+                if (key === '1-10Y') return avgRates(row, '1', '10');
+                if (key === '1-15Y') return avgRates(row, '1', '15');
+                if (key === '1-20Y') return avgRates(row, '1', '20');
+                if (key === '21-40Y') return avgRates(row, '21', '40');
+                return sanitizeRate(row[key]);
+            }
+            const fmtVal = v => v !== null && v !== undefined && isFinite(v) ? v.toFixed(4) : '—';
+            const fmtDiff = diff => {
+                if (diff === null) return '—';
+                const sign = diff > 0 ? '+' : '';
+                const arrow = diff > 0 ? '↑' : (diff < 0 ? '↓' : '');
+                const cls = diff > 0 ? 'positive' : (diff < 0 ? 'negative' : 'flat');
+                return `<span class="diff-col ${cls}"><span class="arrow">${arrow}</span>${sign}${diff.toFixed(1)}</span>`;
+            };
+            tbody.innerHTML = keys.map((key, i) => {
+                const current = value(targetRates, key);
+                const lastYear = value(lastYearRates, key);
+                const lastMonth = value(lastMonthRates, key);
+                const prev = value(prevRates, key);
+                return '<tr><td><strong>' + labels[i] + '</strong></td><td>' + fmtVal(current) + '</td><td>' + fmtVal(lastYear) + '</td><td>' + fmtVal(lastMonth) + '</td><td>' + fmtVal(prev) + '</td><td>' + fmtDiff(safeDiffBp(current, prev)) + '</td><td>' + fmtDiff(safeDiffBp(current, lastMonth)) + '</td><td>' + fmtDiff(safeDiffBp(current, lastYear)) + '</td></tr>';
+            }).join('');
+            const footnote = document.getElementById('comparisonFootnote');
+            if (footnote) footnote.textContent = '当前口径：' + basisLabel() + ' ｜ 上年度末=' + (dates.lastYearTrade || '—') + ' ｜ 上月末=' + (dates.lastMonthTrade || '—') + ' ｜ 上日=' + (dates.prevTrade || '—') + ' ｜ bp = 基点 (1bp=0.01%)';
+        }
+
+        function renderHistoryDiffTable() {
+            const tbody = document.getElementById('historyDiffBody');
+            const fromSelect = document.getElementById('historyDiffFromSelect');
+            const toSelect = document.getElementById('historyDiffToSelect');
+            if (!tbody || !fromSelect || !toSelect) return;
+            const fromRow = getRatesForBasis(fromSelect.value);
+            const toRow = getRatesForBasis(toSelect.value);
+            const keys = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', '1-10Y', '1-20Y', '21-40Y'];
+            function value(row, key) {
+                if (!row) return null;
+                if (key === '1-10Y') return avgRates(row, '1', '10');
+                if (key === '1-20Y') return avgRates(row, '1', '20');
+                if (key === '21-40Y') return avgRates(row, '21', '40');
+                return sanitizeRate(row[key]);
+            }
+            const fmtVal = v => v !== null && v !== undefined && isFinite(v) ? v.toFixed(4) : '—';
+            const fmtDiff = diff => diff === null ? '—' : (diff > 0 ? '+' : '') + diff.toFixed(1);
+            tbody.innerHTML = keys.map(key => {
+                const a = value(fromRow, key);
+                const b = value(toRow, key);
+                return '<tr><td><strong>' + key + '</strong></td><td>' + fmtVal(a) + '</td><td>' + fmtVal(b) + '</td><td>' + fmtDiff(safeDiffBp(b, a)) + '</td></tr>';
+            }).join('');
+        }
+
         // ================================================================
         // 移动平均分析模块
         // ================================================================
@@ -2172,6 +2526,20 @@
         function populateMASelectors() {
             // 期限选择器
             const termSelect = document.getElementById('maTermSelect');
+            const dateSelect = document.getElementById('maDateSelect');
+            if (lifeMAContextReady()) {
+                const termsToShow = (lifeDiscountData.terms || []).filter(t => !isNaN(parseFloat(t)));
+                if (!termsToShow.includes(maSelectedTerm)) maSelectedTerm = termsToShow.includes('10Y') ? '10Y' : termsToShow[0];
+                termSelect.innerHTML = termsToShow.map(t =>
+                    `<option value="${t}" ${t === maSelectedTerm ? 'selected' : ''}>${t}</option>`
+                ).join('');
+                const recentDates = (lifeDiscountData.dates || []).slice(-500);
+                if (!recentDates.includes(maSelectedDate)) maSelectedDate = lifeSelectedDate || recentDates[recentDates.length - 1];
+                dateSelect.innerHTML = recentDates.map(d =>
+                    `<option value="${d}" ${d === maSelectedDate ? 'selected' : ''}>${d}</option>`
+                ).join('');
+                return;
+            }
             const termsToShow = allTerms.filter(t => {
                 const n = parseFloat(t);
                 return !isNaN(n);
@@ -2180,7 +2548,6 @@
                 `<option value="${t}" ${t === maSelectedTerm ? 'selected' : ''}>${t}</option>`
             ).join('');
             // 日期选择器
-            const dateSelect = document.getElementById('maDateSelect');
             const dates = dataStore.dates;
             // 只放最近500个交易日，避免下拉太长
             const recentDates = dates.slice(-500);
@@ -2487,6 +2854,120 @@
             XLSX.writeFile(wb, bondLabel + '_MA期限曲线_' + suffix + '.xlsx');
         }
 
+        function lifeMAContextReady() {
+            return activeSection === 'premium' && lifeDiscountData && lifeSelectedBenchmark && lifeSelectedSpreadBond;
+        }
+
+        function lifeBenchmarkValueAt(dateIdx, term) {
+            const row = lifeRowAt(lifeDiscountData.benchmarkRows?.[lifeSelectedBenchmark], dateIdx);
+            return lifeValue(row, term);
+        }
+
+        function lifeSpreadBondValueAt(dateIdx, term) {
+            const row = lifeRowAt(lifeDiscountData.spreadBondRows?.[lifeSelectedSpreadBond], dateIdx);
+            return lifeSpreadValue(row, term);
+        }
+
+        function renderMATimeSeriesTable() {
+            const tbody = document.getElementById('maTimeSeriesBody');
+            if (!tbody || !lifeMAContextReady()) return;
+            const term = maSelectedTerm || '10Y';
+            const dates = lifeDiscountData.dates || [];
+            const rows = dates.slice(-12).map(date => {
+                const idx = dates.indexOf(date);
+                const base = lifeBenchmarkValueAt(idx, term);
+                const compare = lifeSpreadBondValueAt(idx, term);
+                const diff = base != null && compare != null ? (compare - base) * 100 : null;
+                return { date, base, compare, diff };
+            });
+            const fmt = v => v != null && isFinite(v) ? v.toFixed(4) : '—';
+            tbody.innerHTML = rows.map(r => '<tr><td><strong>' + r.date + '</strong></td><td>' + fmt(r.base) + '</td><td>' + fmt(r.compare) + '</td><td>' + (r.diff != null ? (r.diff > 0 ? '+' : '') + r.diff.toFixed(1) : '—') + '</td></tr>').join('');
+        }
+
+        function renderMACurveTable() {
+            const tbody = document.getElementById('maCurveBody');
+            if (!tbody || !lifeMAContextReady()) return;
+            const dates = lifeDiscountData.dates || [];
+            const date = maSelectedDate && dates.includes(maSelectedDate) ? maSelectedDate : (lifeSelectedDate || dates[dates.length - 1]);
+            const idx = dates.indexOf(date);
+            const terms = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '40Y', '50Y'];
+            const fmt = v => v != null && isFinite(v) ? v.toFixed(4) : '—';
+            tbody.innerHTML = terms.map(term => {
+                const base = lifeBenchmarkValueAt(idx, term);
+                const compare = lifeSpreadBondValueAt(idx, term);
+                const diff = base != null && compare != null ? (compare - base) * 100 : null;
+                return '<tr><td><strong>' + term + '</strong></td><td>' + fmt(base) + '</td><td>' + fmt(compare) + '</td><td>' + (diff != null ? (diff > 0 ? '+' : '') + diff.toFixed(1) : '—') + '</td></tr>';
+            }).join('');
+        }
+
+        function renderMATimeSeriesChart() {
+            if (!lifeMAContextReady()) return;
+            const container = document.getElementById('maTimeSeriesChart');
+            if (!container) return;
+            if (maTimeSeriesChart) maTimeSeriesChart.dispose();
+            maTimeSeriesChart = echarts.init(container);
+            const dates = lifeDiscountData.dates || [];
+            const term = maSelectedTerm || '10Y';
+            const baseData = dates.map((d, idx) => lifeBenchmarkValueAt(idx, term));
+            const compareData = dates.map((d, idx) => lifeSpreadBondValueAt(idx, term));
+            const values = [...baseData, ...compareData].filter(v => v != null && isFinite(v));
+            const min = values.length ? Math.min(...values) : 0;
+            const max = values.length ? Math.max(...values) : 5;
+            const padding = (max - min) * 0.1 || 0.5;
+            maTimeSeriesChart.setOption(optimizeChartOption({
+                tooltip: lightweightTooltip({ trigger: 'axis', formatter: function(params) {
+                    let s = params[0].axisValue + '<br/>';
+                    for (const p of params) if (p.value != null) s += p.marker + ' ' + p.seriesName + ': ' + p.value.toFixed(4) + '%<br/>';
+                    return s;
+                }}),
+                legend: { top: 5 },
+                grid: { left: 55, right: 20, top: 45, bottom: 70 },
+                xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 10, rotate: 30, interval: Math.max(1, Math.floor(dates.length / 15)) }, name: '日期', nameLocation: 'center', nameGap: 45 },
+                yAxis: { type: 'value', name: '利率 (%)', nameLocation: 'center', nameGap: 40, axisLabel: { formatter: v => v.toFixed(2) + '%' }, min: min - padding, max: max + padding },
+                series: [
+                    { name: '基础曲线', type: 'line', data: baseData, showSymbol: false, smooth: false, lineStyle: { width: 2.4, color: '#1f4a7a' }, itemStyle: { color: '#1f4a7a' } },
+                    { name: '对比曲线', type: 'line', data: compareData, showSymbol: false, smooth: false, lineStyle: { width: 2.4, color: '#e67e22' }, itemStyle: { color: '#e67e22' } }
+                ],
+                dataZoom: [{ type: 'inside', start: 0, end: 100 }, { type: 'slider', height: 18, bottom: 25 }]
+            }), true);
+            renderMATimeSeriesTable();
+        }
+
+        function renderMACurveChart() {
+            if (!lifeMAContextReady()) return;
+            const container = document.getElementById('maCurveChart');
+            if (!container) return;
+            if (maCurveChartEcharts) maCurveChartEcharts.dispose();
+            maCurveChartEcharts = echarts.init(container);
+            const dates = lifeDiscountData.dates || [];
+            const date = maSelectedDate && dates.includes(maSelectedDate) ? maSelectedDate : (lifeSelectedDate || dates[dates.length - 1]);
+            const idx = dates.indexOf(date);
+            const terms = lifeDiscountData.terms || [];
+            const x = terms.map(t => parseFloat(t));
+            const baseData = terms.map(term => lifeBenchmarkValueAt(idx, term));
+            const compareData = terms.map(term => lifeSpreadBondValueAt(idx, term));
+            const values = [...baseData, ...compareData].filter(v => v != null && isFinite(v));
+            const min = values.length ? Math.min(...values) : 0;
+            const max = values.length ? Math.max(...values) : 5;
+            const padding = (max - min) * 0.12 || 0.5;
+            maCurveChartEcharts.setOption(optimizeChartOption({
+                tooltip: lightweightTooltip({ trigger: 'axis', formatter: function(params) {
+                    let s = params[0].axisValue + '年<br/>';
+                    for (const p of params) if (p.value && p.value[1] != null) s += p.marker + ' ' + p.seriesName + ': ' + p.value[1].toFixed(4) + '%<br/>';
+                    return s;
+                }}),
+                legend: { top: 5 },
+                grid: { left: 55, right: 20, top: 45, bottom: 50 },
+                xAxis: { type: 'value', name: '期限 (年)', nameLocation: 'center', nameGap: 28 },
+                yAxis: { type: 'value', name: '利率 (%)', nameLocation: 'center', nameGap: 40, axisLabel: { formatter: v => v.toFixed(2) + '%' }, min: min - padding, max: max + padding },
+                series: [
+                    { name: '基础曲线', type: 'line', data: x.map((year, i) => [year, baseData[i]]), showSymbol: false, smooth: false, lineStyle: { width: 2.4, color: '#1f4a7a' }, itemStyle: { color: '#1f4a7a' } },
+                    { name: '对比曲线', type: 'line', data: x.map((year, i) => [year, compareData[i]]), showSymbol: false, smooth: false, lineStyle: { width: 2.4, color: '#e67e22' }, itemStyle: { color: '#e67e22' } }
+                ]
+            }), true);
+            renderMACurveTable();
+        }
+
         let deferredDetailRenderId = 0;
         let detailRenderedStoreRef = null;
 
@@ -2495,9 +2976,6 @@
             renderForecastChart();
             renderQuarterTable();
             renderHistoryTable();
-            initMAAnalysis();
-            renderMATimeSeriesChart();
-            renderMACurveChart();
         }
 
         function scheduleDeferredDetailSections() {
@@ -2531,6 +3009,7 @@
             updateMetrics();
             renderCurveChart();
             renderKeyTermsTable();
+            renderHistoryDiffTable();
             if (options.deferHeavy === false) {
                 renderDeferredDetailSections();
             } else {
@@ -2763,6 +3242,8 @@
             });
             const bondSelector = document.getElementById('bondSelector');
             if (bondSelector) bondSelector.style.display = section === 'base' ? 'inline-flex' : 'none';
+            const uploadArea = document.querySelector('.upload-area');
+            if (uploadArea) uploadArea.style.display = section === 'base' ? 'flex' : 'none';
         }
 
         async function showPremiumSection() {
@@ -2823,8 +3304,6 @@
             if (frontPremiumSelect) frontPremiumSelect.value = lifeFrontPremiumMode;
             const longPremiumSelect = document.getElementById('lifeLongPremiumSelect');
             if (longPremiumSelect) longPremiumSelect.value = lifeLongPremiumMode;
-            const curveTypeSelect = document.getElementById('lifeCurveTypeSelect');
-            if (curveTypeSelect) curveTypeSelect.value = lifeCurveType;
         }
 
         function lifeRowAt(rows, idx) {
@@ -2967,22 +3446,20 @@
             const spreadBond = lifeDiscountData.spreadBonds.find(item => item.key === lifeSelectedSpreadBond) || lifeDiscountData.spreadBonds[0];
             if (dateIdx < 0 || !benchmark || !spreadBond) return;
 
-            const { baseRow, premiumRow, spotRow, forwardRow } = getLifeRows(dateIdx, benchmark.key, spreadBond.key);
-            const selectedRow = lifeCurveType === 'premium' ? premiumRow : (lifeCurveType === 'forward' ? forwardRow : spotRow);
+            const { premiumRow } = getLifeRows(dateIdx, benchmark.key, spreadBond.key);
+            const selectedRow = premiumRow;
             const terms = lifeDiscountData.terms;
             const x = terms.map(t => parseFloat(t));
-            const selectedName = lifeCurveType === 'premium' ? '综合溢价' : (lifeCurveType === 'forward' ? '远期折现率' : '即期折现率');
+            const selectedName = '综合溢价';
 
             const benchmarkSelect = document.getElementById('lifeBenchmarkSelect');
             const spreadBondSelect = document.getElementById('lifeSpreadBondSelect');
             const frontPremiumSelect = document.getElementById('lifeFrontPremiumSelect');
             const longPremiumSelect = document.getElementById('lifeLongPremiumSelect');
-            const curveTypeSelect = document.getElementById('lifeCurveTypeSelect');
             if (benchmarkSelect) benchmarkSelect.value = benchmark.key;
             if (spreadBondSelect) spreadBondSelect.value = spreadBond.key;
             if (frontPremiumSelect) frontPremiumSelect.value = lifeFrontPremiumMode;
             if (longPremiumSelect) longPremiumSelect.value = lifeLongPremiumMode;
-            if (curveTypeSelect) curveTypeSelect.value = lifeCurveType;
             const badge = document.getElementById('lifeChartBadge');
             if (badge) badge.textContent = selectedName + ' · ' + (benchmark.shortName || benchmark.name) + ' / ' + (spreadBond.shortName || spreadBond.name) + ' / ' + lifeFrontPremiumModeName() + ' / ' + lifeLongPremiumModeName();
 
@@ -2994,21 +3471,14 @@
 
             const keyTerms = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '40Y', '50Y'];
             document.getElementById('lifeKeyBody').innerHTML = keyTerms.map(term => {
-                const base = lifeValue(baseRow, term);
                 const premium = lifeValue(premiumRow, term);
-                const spot = lifeValue(spotRow, term);
-                const fwd = lifeValue(forwardRow, term);
-                return '<tr><td>' + term + '</td><td>' + (base != null ? base.toFixed(4) : '—') + '</td><td>' + (premium != null ? premium.toFixed(4) : '—') + '</td><td>' + (spot != null ? spot.toFixed(4) : '—') + '</td><td>' + (fwd != null ? fwd.toFixed(4) : '—') + '</td></tr>';
+                return '<tr><td>' + term + '</td><td>' + (premium != null ? premium.toFixed(4) : '—') + '</td></tr>';
             }).join('');
 
             if (!lifeDiscountChart) lifeDiscountChart = echarts.init(document.getElementById('lifeDiscountChart'));
             const series = [
                 { name: selectedName, type: 'line', data: x.map((year, i) => [year, selectedRow[i]]), showSymbol: false, smooth: false, lineStyle: { width: 3, color: '#1f4a7a' }, itemStyle: { color: '#1f4a7a' } }
             ];
-            if (lifeCurveType === 'spot') {
-                series.push({ name: '基础利率', type: 'line', data: x.map((year, i) => [year, baseRow[i]]), showSymbol: false, smooth: false, lineStyle: { width: 2, color: '#7a8ea8', type: 'dashed' }, itemStyle: { color: '#7a8ea8' } });
-                series.push({ name: '综合溢价', type: 'line', data: x.map((year, i) => [year, premiumRow[i]]), showSymbol: false, smooth: false, lineStyle: { width: 2, color: '#b26a00', type: 'dotted' }, itemStyle: { color: '#b26a00' } });
-            }
             lifeDiscountChart.setOption(optimizeChartOption({
                 tooltip: lightweightTooltip({ trigger: 'axis', formatter: function(params) {
                     let s = params[0].axisValue + 'Y<br/>';
@@ -3021,20 +3491,131 @@
                 yAxis: { type: 'value', name: '利率(%)', axisLabel: { formatter: v => v.toFixed(2) + '%' } },
                 series
             }), true);
+            renderLifeCompareChart();
+            renderLifeDiffTable();
+            initMAAnalysis();
+            renderMATimeSeriesChart();
+            renderMACurveChart();
+        }
+
+        function lifeDateOnOrBefore(targetDate) {
+            let found = null;
+            for (const d of lifeDiscountData.dates || []) {
+                if (d <= targetDate) found = d;
+                else break;
+            }
+            return found;
+        }
+
+        function getLifeComparisonDates(targetDate) {
+            const dt = new Date(targetDate + 'T00:00:00Z');
+            const year = dt.getUTCFullYear();
+            const month = dt.getUTCMonth() + 1;
+            const prevMonthEnd = new Date(Date.UTC(year, month - 1, 0)).toISOString().slice(0, 10);
+            const prevDate = (() => {
+                const dates = lifeDiscountData.dates || [];
+                const idx = dates.indexOf(targetDate);
+                return idx > 0 ? dates[idx - 1] : null;
+            })();
+            return {
+                lastYearTrade: lifeDateOnOrBefore((year - 1) + '-12-31'),
+                lastMonthTrade: lifeDateOnOrBefore(prevMonthEnd),
+                prevTrade: prevDate
+            };
+        }
+
+        function lifePremiumRowForDate(date) {
+            const idx = lifeDiscountData.dates.indexOf(date);
+            if (idx < 0) return [];
+            return getLifeRows(idx, lifeSelectedBenchmark, lifeSelectedSpreadBond).premiumRow || [];
+        }
+
+        function populateLifeDiffSelectors() {
+            const fromSelect = document.getElementById('lifeDiffFromSelect');
+            const toSelect = document.getElementById('lifeDiffToSelect');
+            if (!fromSelect || !toSelect || !lifeDiscountData) return;
+            const dates = lifeDiscountData.dates || [];
+            const current = lifeSelectedDate || dates[dates.length - 1];
+            const prev = getLifeComparisonDates(current).prevTrade || current;
+            [fromSelect, toSelect].forEach(sel => {
+                const keep = sel.value;
+                sel.innerHTML = '';
+                for (const d of dates.slice(-500)) {
+                    const opt = document.createElement('option');
+                    opt.value = d;
+                    opt.textContent = d;
+                    sel.appendChild(opt);
+                }
+                if (keep && dates.includes(keep)) sel.value = keep;
+            });
+            if (!fromSelect.value) fromSelect.value = prev;
+            if (!toSelect.value) toSelect.value = current;
+        }
+
+        function renderLifeCompareChart() {
+            if (!lifeDiscountData) return;
+            populateLifeDiffSelectors();
+            const el = document.getElementById('lifeCompareChart');
+            if (!el) return;
+            if (!lifeCompareChart) lifeCompareChart = echarts.init(el);
+            const targetDate = lifeSelectedDate || lifeDiscountData.dates[lifeDiscountData.dates.length - 1];
+            const dates = getLifeComparisonDates(targetDate);
+            const items = [
+                { name: '上年度末', date: dates.lastYearTrade, color: '#e74c3c', line: 'dashed' },
+                { name: '上月末', date: dates.lastMonthTrade, color: '#2ecc71', line: 'dashed' },
+                { name: '上日', date: dates.prevTrade, color: '#7a8ea8', line: 'dotted' },
+                { name: '所选日', date: targetDate, color: '#1f4a7a', line: 'solid' }
+            ].filter(item => item.date);
+            const terms = lifeDiscountData.terms;
+            const x = terms.map(t => parseFloat(t));
+            const series = items.map(item => {
+                const row = lifePremiumRowForDate(item.date);
+                return {
+                    name: item.name,
+                    type: 'line',
+                    data: x.map((year, i) => [year, row[i]]),
+                    showSymbol: false,
+                    smooth: false,
+                    lineStyle: { width: item.name === '所选日' ? 3 : 2, color: item.color, type: item.line },
+                    itemStyle: { color: item.color }
+                };
+            });
+            lifeCompareChart.setOption(optimizeChartOption({
+                tooltip: lightweightTooltip({ trigger: 'axis', formatter: function(params) {
+                    let s = params[0].axisValue + 'Y<br/>';
+                    for (const p of params) if (p.value && p.value[1] != null) s += p.marker + ' ' + p.seriesName + ': ' + p.value[1].toFixed(4) + '%<br/>';
+                    return s;
+                }}),
+                legend: { top: 6 },
+                grid: { left: 55, right: 25, top: 45, bottom: 45 },
+                xAxis: { type: 'value', name: '期限(年)', min: 1, max: 50 },
+                yAxis: { type: 'value', name: '综合溢价(%)', axisLabel: { formatter: v => v.toFixed(2) + '%' } },
+                series
+            }), true);
+        }
+
+        function renderLifeDiffTable() {
+            if (!lifeDiscountData) return;
+            populateLifeDiffSelectors();
+            const tbody = document.getElementById('lifeDiffBody');
+            const fromSelect = document.getElementById('lifeDiffFromSelect');
+            const toSelect = document.getElementById('lifeDiffToSelect');
+            if (!tbody || !fromSelect || !toSelect) return;
+            const rowA = lifePremiumRowForDate(fromSelect.value);
+            const rowB = lifePremiumRowForDate(toSelect.value);
+            const keyTerms = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '40Y', '50Y'];
+            const fmt = v => v != null && isFinite(v) ? v.toFixed(4) : '—';
+            tbody.innerHTML = keyTerms.map(term => {
+                const idx = lifeDiscountData.terms.indexOf(term);
+                const a = idx >= 0 ? rowA[idx] : null;
+                const b = idx >= 0 ? rowB[idx] : null;
+                const diff = a != null && b != null ? (b - a) * 100 : null;
+                return '<tr><td><strong>' + term + '</strong></td><td>' + fmt(a) + '</td><td>' + fmt(b) + '</td><td>' + (diff != null ? (diff > 0 ? '+' : '') + diff.toFixed(1) : '—') + '</td></tr>';
+            }).join('');
         }
 
         function downloadLifeDiscountExcel() {
-            if (!lifeDiscountData) return;
-            const dateIdx = lifeDiscountData.dates.indexOf(lifeSelectedDate);
-            const benchmark = lifeDiscountData.benchmarks.find(item => item.key === lifeSelectedBenchmark) || lifeDiscountData.benchmarks[0];
-            const spreadBond = lifeDiscountData.spreadBonds.find(item => item.key === lifeSelectedSpreadBond) || lifeDiscountData.spreadBonds[0];
-            const { baseRow, premiumRow, spotRow, forwardRow } = getLifeRows(dateIdx, benchmark.key, spreadBond.key);
-            const rows = [['日期', lifeSelectedDate], ['标的利率曲线', benchmark.name], ['溢价债券', spreadBond.name], ['前20年溢价口径', lifeFrontPremiumModeName()], ['长期溢价口径', lifeLongPremiumModeName()], [], ['期限', '基础利率(%)', '综合溢价(%)', '即期折现率(%)', '远期折现率(%)']];
-            for (let i = 0; i < lifeDiscountData.terms.length; i++) rows.push([lifeDiscountData.terms[i], baseRow[i], premiumRow[i], spotRow[i], forwardRow[i]]);
-            const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.aoa_to_sheet(rows);
-            XLSX.utils.book_append_sheet(wb, ws, '溢价评估利率');
-            XLSX.writeFile(wb, '寿险合同负债评估折现率_' + lifeSelectedDate + '_' + benchmark.key + '_' + spreadBond.key + '_' + lifeFrontPremiumMode + '_' + lifeLongPremiumMode + '.xlsx');
+            return;
         }
 
         const PRESET_POLICY_NAMES = { mean: '三者均值', cdb: '国开债', adb: '农发行债', exim: '进出口行债' };
@@ -3430,6 +4011,13 @@
             document.getElementById('bondRateTypeSelect').addEventListener('change', function() {
                 showDetail(bondDatasetKey(document.getElementById('bondCurveSelect').value, this.value));
             });
+            document.getElementById('baseRateBasisSelect').addEventListener('change', function() {
+                baseRateBasis = this.value;
+                updateMetrics();
+                renderCurveChart();
+                renderKeyTermsTable();
+                renderHistoryDiffTable();
+            });
             document.getElementById('lifeDateSelect').addEventListener('change', function() {
                 lifeSelectedDate = this.value;
                 renderLifeDiscountView();
@@ -3450,11 +4038,8 @@
                 lifeLongPremiumMode = this.value;
                 renderLifeDiscountView();
             });
-            document.getElementById('lifeCurveTypeSelect').addEventListener('change', function() {
-                lifeCurveType = this.value;
-                renderLifeDiscountView();
-            });
-            document.getElementById('lifeDownloadBtn').addEventListener('click', downloadLifeDiscountExcel);
+            document.getElementById('lifeDiffFromSelect').addEventListener('change', renderLifeDiffTable);
+            document.getElementById('lifeDiffToSelect').addEventListener('change', renderLifeDiffTable);
             document.getElementById('presetPolicyGroup').addEventListener('click', function(e) {
                 if (!e.target || !e.target.dataset.policy) return;
                 presetPolicy = e.target.dataset.policy;
