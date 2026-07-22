@@ -163,6 +163,26 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("基础曲线", text)
         self.assertIn("对比曲线", text)
 
+    def test_comparison_spacing_and_diff_cells_are_consistent(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('id="historyComparisonCard"', text)
+        self.assertIn('class="card section-card"', text)
+        self.assertIn(".section-card { margin-bottom: 20px;", text)
+        self.assertIn("function formatDiffCell", text)
+        self.assertGreaterEqual(text.count("formatDiffCell("), 5)
+        self.assertIn("diff-col positive", text)
+        self.assertIn("diff-col negative", text)
+
+    def test_premium_ma_cards_are_aligned_and_compare_curve_is_full_term(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('class="grid-2 premium-ma-grid"', text)
+        self.assertIn('class="card premium-ma-card"', text)
+        self.assertIn(".premium-ma-card { display: flex;", text)
+        self.assertIn(".premium-ma-card .table-wrap {", text)
+        self.assertIn("function lifeFullCompareValueAt", text)
+        self.assertIn("benchmark + premium", text)
+        self.assertIn("lifeFullCompareValueAt(idx, term)", text)
+
 
 if __name__ == "__main__":
     unittest.main()
