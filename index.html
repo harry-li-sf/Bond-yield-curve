@@ -120,7 +120,7 @@
         .play-btn:hover { background: #12345a; }
         .play-btn.paused { background: #27ae60; }
         .play-btn.paused:hover { background: #1e8449; }
-        @media (max-width: 1024px) { .grid-2 { grid-template-columns: 1fr; } }
+        @media (max-width: 1024px) { .grid-2, .premium-ma-grid { grid-template-columns: 1fr; } }
         @media (max-width: 900px) { .header-card { grid-template-columns: 1fr; } .header-actions { grid-column: 1; grid-row: 2; justify-content: flex-start; } .bond-selector { grid-row: 3; } .subtitle { grid-row: 4; } h1 { white-space: normal; } }
         @media (max-width: 640px) { body { padding: 12px; } .card { padding: 14px; } .chart-box { height: 220px; } .chart-box.tall { height: 260px; } .table-wrap { font-size: 12px; } .table-wrap th, .table-wrap td { padding: 5px 6px; } .upload-area { width: 100%; justify-content: flex-start; flex-wrap: wrap; } .date-selector select { max-width: 120px; } .metrics-row { gap: 8px 16px; padding: 8px 12px; } .metric-value { font-size: 16px; } .dash-terms { grid-template-columns: repeat(2, 1fr); gap: 6px; } .term-cell { padding: 10px 2px; } .term-val { font-size: clamp(14px, 3.6vw, 18px); } .term-label { font-size: 11px; margin-bottom: 4px; } .term-chg { font-size: clamp(9px, 2.6vw, 12px); margin-top: 4px; } }
         @media (max-width: 380px) { .dash-terms { grid-template-columns: repeat(2, 1fr); } .term-val { font-size: clamp(13px, 4.2vw, 17px); } }
@@ -133,11 +133,11 @@
         .diff-col.positive { color: #c0392b; }
         .diff-col.negative { color: #27ae60; }
         .diff-col.flat { color: #888; }
-        .premium-ma-stack { display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 20px; }
-        .premium-ma-card { width: 100%; }
-        .premium-ma-content { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr); gap: 18px; align-items: start; }
-        .premium-ma-card .chart-box { height: 420px; }
-        .premium-ma-card .table-wrap { overflow: visible; margin-top: 0; }
+        .premium-ma-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: stretch; margin-top: 20px; }
+        .premium-ma-card { width: 100%; min-width: 0; display: flex; flex-direction: column; }
+        .premium-ma-card .chart-box { height: 360px; flex: 0 0 auto; }
+        .premium-ma-card .table-wrap { max-height: 260px; overflow: auto; margin-top: 12px; }
+        .ma-table-controls { margin-top: 12px; margin-bottom: 0; }
         .ma-curve-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
         .ma-curve-item { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #3e5a7a; cursor: pointer; }
         .ma-curve-item input[type="checkbox"] { accent-color: #1f4a7a; width: 14px; height: 14px; }
@@ -501,7 +501,7 @@
                 </div>
             </div>
 
-            <div class="premium-ma-stack">
+            <div class="premium-ma-grid">
                 <div class="card premium-ma-card">
                     <div class="card-title">
                         <span>📊 移动平均 · 时间序列</span>
@@ -521,14 +521,17 @@
                             <button onclick="addMAPeriod('A')">+添加</button>
                         </div>
                     </div>
-                    <div class="premium-ma-content">
-                        <div class="chart-box tall" id="maTimeSeriesChart"></div>
-                        <div class="table-wrap">
-                            <table>
-                                <thead id="maTimeSeriesHeader"></thead>
-                                <tbody id="maTimeSeriesBody"></tbody>
-                            </table>
-                        </div>
+                    <div class="chart-box tall" id="maTimeSeriesChart"></div>
+                    <div class="ma-controls ma-table-controls">
+                        <label>表格截至日期</label>
+                        <select id="maTimeSeriesEndDateSelect"></select>
+                        <span class="ma-chip">默认展示10个日期</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead id="maTimeSeriesHeader"></thead>
+                            <tbody id="maTimeSeriesBody"></tbody>
+                        </table>
                     </div>
                     <div class="footnote">选定期限下，基础曲线与对比曲线同步展示。</div>
                 </div>
@@ -564,14 +567,12 @@
                             <button onclick="addMAPeriod('B')">+添加</button>
                         </div>
                     </div>
-                    <div class="premium-ma-content">
-                        <div class="chart-box tall" id="maCurveChart"></div>
-                        <div class="table-wrap">
-                            <table>
-                                <thead id="maCurveHeader"></thead>
-                                <tbody id="maCurveBody"></tbody>
-                            </table>
-                        </div>
+                    <div class="chart-box tall" id="maCurveChart"></div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead id="maCurveHeader"></thead>
+                            <tbody id="maCurveBody"></tbody>
+                        </table>
                     </div>
                     <div class="footnote">选定日期下，基础曲线与对比曲线按期限同步展示。</div>
                 </div>
@@ -2438,10 +2439,13 @@
         // ================================================================
         const MA_PRESETS = [60, 120, 250, 500, 750, 1000, 2500];
         const MA_COLORS = ['#1f4a7a', '#e74c3c', '#27ae60', '#f39c12', '#8e44ad', '#16a085', '#e67e22', '#2c3e50', '#d35400', '#7f8c8d'];
+        const MA_TABLE_DATE_COUNT = 10;
+        const MA_KEY_TERMS = ['1Y', '3Y', '5Y', '7Y', '10Y', '15Y', '20Y', '30Y', '40Y', '50Y'];
         let maActivePeriods = [60];           // 默认开启的周期
         let maSelectedCurves = ['base', 'compare'];
         let maSelectedTerm = '10Y';
         let maSelectedDate = null;
+        let maTimeSeriesEndDate = null;
         let maTimeSeriesChart = null;
         let maCurveChartEcharts = null;
         let maInitialized = false;
@@ -2523,6 +2527,7 @@
             // 期限选择器
             const termSelect = document.getElementById('maTermSelect');
             const dateSelect = document.getElementById('maDateSelect');
+            const timeEndSelect = document.getElementById('maTimeSeriesEndDateSelect');
             if (lifeMAContextReady()) {
                 const termsToShow = (lifeDiscountData.terms || []).filter(t => !isNaN(parseFloat(t)));
                 if (!termsToShow.includes(maSelectedTerm)) maSelectedTerm = termsToShow.includes('10Y') ? '10Y' : termsToShow[0];
@@ -2531,9 +2536,15 @@
                 ).join('');
                 const recentDates = (lifeDiscountData.dates || []).slice(-500);
                 if (!recentDates.includes(maSelectedDate)) maSelectedDate = lifeSelectedDate || recentDates[recentDates.length - 1];
+                if (!recentDates.includes(maTimeSeriesEndDate)) maTimeSeriesEndDate = lifeSelectedDate || recentDates[recentDates.length - 1];
                 dateSelect.innerHTML = recentDates.map(d =>
                     `<option value="${d}" ${d === maSelectedDate ? 'selected' : ''}>${d}</option>`
                 ).join('');
+                if (timeEndSelect) {
+                    timeEndSelect.innerHTML = recentDates.map(d =>
+                        `<option value="${d}" ${d === maTimeSeriesEndDate ? 'selected' : ''}>${d}</option>`
+                    ).join('');
+                }
                 return;
             }
             const termsToShow = allTerms.filter(t => {
@@ -2550,6 +2561,12 @@
             dateSelect.innerHTML = recentDates.map(d =>
                 `<option value="${d}" ${d === maSelectedDate ? 'selected' : ''}>${d}</option>`
             ).join('');
+            if (timeEndSelect) {
+                if (!recentDates.includes(maTimeSeriesEndDate)) maTimeSeriesEndDate = recentDates[recentDates.length - 1];
+                timeEndSelect.innerHTML = recentDates.map(d =>
+                    `<option value="${d}" ${d === maTimeSeriesEndDate ? 'selected' : ''}>${d}</option>`
+                ).join('');
+            }
         }
 
         function renderMAPeriodControls() {
@@ -2647,6 +2664,13 @@
                 maSelectedDate = this.value;
                 renderMACurveChart();
             });
+            const maTimeSeriesEndDateSelect = document.getElementById('maTimeSeriesEndDateSelect');
+            if (maTimeSeriesEndDateSelect) {
+                maTimeSeriesEndDateSelect.addEventListener('change', function() {
+                    maTimeSeriesEndDate = this.value;
+                    renderMATimeSeriesTable(buildPremiumMASeries('time'));
+                });
+            }
             // 回车提交
             document.getElementById('maCustomInputA').addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') addMAPeriod('A');
@@ -2995,6 +3019,16 @@
             return seriesRows;
         }
 
+        function maTimeSeriesTableDates() {
+            const dates = lifeDiscountData.dates || [];
+            if (dates.length === 0) return [];
+            const fallbackEndDate = lifeSelectedDate || dates[dates.length - 1];
+            const endDate = maTimeSeriesEndDate && dates.includes(maTimeSeriesEndDate) ? maTimeSeriesEndDate : fallbackEndDate;
+            const endIdx = Math.max(0, dates.indexOf(endDate));
+            const startIdx = Math.max(0, endIdx - MA_TABLE_DATE_COUNT + 1);
+            return dates.slice(startIdx, endIdx + 1);
+        }
+
         function renderMATimeSeriesTable(seriesRows) {
             const thead = document.getElementById('maTimeSeriesHeader');
             const tbody = document.getElementById('maTimeSeriesBody');
@@ -3002,7 +3036,8 @@
             const dates = lifeDiscountData.dates || [];
             const fmt = v => v != null && isFinite(v) ? v.toFixed(4) : '—';
             thead.innerHTML = '<tr><th>日期</th>' + seriesRows.map(s => '<th>' + s.name + '(%)</th>').join('') + (seriesRows.length === 2 ? '<th>差值(bp)</th>' : '') + '</tr>';
-            tbody.innerHTML = dates.map((date, idx) => {
+            tbody.innerHTML = maTimeSeriesTableDates().map(date => {
+                const idx = dates.indexOf(date);
                 const values = seriesRows.map(s => s.data[idx]?.value ?? null);
                 const diff = values.length === 2 ? safeDiffBp(values[1], values[0]) : null;
                 return '<tr><td><strong>' + date + '</strong></td>' + values.map(v => '<td>' + fmt(v) + '</td>').join('') + (values.length === 2 ? '<td>' + formatDiffCell(diff) + '</td>' : '') + '</tr>';
@@ -3016,7 +3051,9 @@
             const terms = lifeDiscountData.terms || [];
             const fmt = v => v != null && isFinite(v) ? v.toFixed(4) : '—';
             thead.innerHTML = '<tr><th>期限</th>' + seriesRows.map(s => '<th>' + s.name + '(%)</th>').join('') + (seriesRows.length === 2 ? '<th>差值(bp)</th>' : '') + '</tr>';
-            tbody.innerHTML = terms.map((term, idx) => {
+            const keyTerms = MA_KEY_TERMS.filter(term => terms.includes(term));
+            tbody.innerHTML = keyTerms.map(term => {
+                const idx = terms.indexOf(term);
                 const values = seriesRows.map(s => s.data[idx]?.value ?? null);
                 const diff = values.length === 2 ? safeDiffBp(values[1], values[0]) : null;
                 return '<tr><td><strong>' + term + '</strong></td>' + values.map(v => '<td>' + fmt(v) + '</td>').join('') + (values.length === 2 ? '<td>' + formatDiffCell(diff) + '</td>' : '') + '</tr>';
@@ -4482,6 +4519,7 @@
             document.getElementById('quarterRefDateSelect').innerHTML = '<option>—</option>';
             document.getElementById('maTermSelect').innerHTML = '<option>—</option>';
             document.getElementById('maDateSelect').innerHTML = '<option>—</option>';
+            document.getElementById('maTimeSeriesEndDateSelect').innerHTML = '<option>—</option>';
             document.getElementById('maPeriodGroupA').innerHTML = '';
             document.getElementById('maPeriodGroupB').innerHTML = '';
             document.getElementById('maTimeSeriesChart').innerHTML = emptyHtml;
