@@ -175,13 +175,15 @@ class FrontendTests(unittest.TestCase):
 
     def test_premium_ma_cards_are_aligned_and_compare_curve_is_full_term(self):
         text = INDEX.read_text(encoding="utf-8")
-        self.assertIn('class="premium-ma-stack"', text)
+        self.assertIn('class="premium-ma-grid"', text)
         self.assertIn('class="card premium-ma-card"', text)
-        self.assertIn('class="premium-ma-content"', text)
-        self.assertIn(".premium-ma-stack { display: grid;", text)
-        self.assertIn(".premium-ma-content { display: grid;", text)
-        self.assertIn(".premium-ma-card .table-wrap { overflow: visible;", text)
-        self.assertNotIn("max-height: 235px", text)
+        self.assertIn(".premium-ma-grid { display: grid;", text)
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr));", text)
+        self.assertIn(".premium-ma-card { width: 100%;", text)
+        self.assertIn(".premium-ma-card .table-wrap { max-height:", text)
+        self.assertIn("overflow: auto;", text)
+        self.assertNotIn("premium-ma-stack", text)
+        self.assertNotIn("premium-ma-content", text)
         self.assertIn("function lifeFullCompareValueAt", text)
         self.assertIn("benchmark + premium", text)
         self.assertIn("lifeFullCompareValueAt(dateIdx, term)", text)
@@ -200,6 +202,16 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("function buildPremiumMASeries", text)
         self.assertIn("renderMATimeSeriesTable(seriesRows", text)
         self.assertIn("renderMACurveTable(seriesRows", text)
+
+    def test_premium_ma_tables_use_ten_recent_dates_and_key_terms(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('id="maTimeSeriesEndDateSelect"', text)
+        self.assertIn("const MA_TABLE_DATE_COUNT = 10;", text)
+        self.assertIn("const MA_KEY_TERMS", text)
+        self.assertIn("function maTimeSeriesTableDates", text)
+        self.assertIn("endIdx - MA_TABLE_DATE_COUNT + 1", text)
+        self.assertIn("maTimeSeriesEndDateSelect", text)
+        self.assertIn("MA_KEY_TERMS.filter(term => terms.includes(term))", text)
 
 
 if __name__ == "__main__":
