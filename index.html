@@ -325,7 +325,34 @@
             </div>
         </div>
 
-        <!-- 第二行：750预测 | 季度末750预测 -->
+        <!-- 第二行：历史关键时点对比 -->
+        <div class="card">
+            <div class="card-title">
+                <span>📆 历史关键时点对比</span>
+                <span class="badge">年末 / 月末 · 按列独立着色</span>
+            </div>
+            <div class="ma-controls">
+                <label for="historyDiffFromSelect">对比日期A</label>
+                <select id="historyDiffFromSelect"></select>
+                <label for="historyDiffToSelect">对比日期B</label>
+                <select id="historyDiffToSelect"></select>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead id="historyDiffHeader"></thead>
+                    <tbody id="historyDiffBody"></tbody>
+                </table>
+            </div>
+            <div class="table-wrap" id="historyTableWrap">
+                <table>
+                    <thead id="historyHeader"></thead>
+                    <tbody id="historyBody"></tbody>
+                </table>
+            </div>
+            <div class="footnote">每列独立着色（柔和热力图：低→淡绿，中→淡黄，高→淡红）</div>
+        </div>
+
+        <!-- 第三行：750预测 | 季度末750预测 -->
         <div class="grid-2">
             <div class="card">
                 <div class="card-title">
@@ -382,40 +409,6 @@
                 </div>
                 <div class="footnote" id="quarterFootnote">预测值 = 加权平均后的750日移动平均 ｜ 实际行（蓝色）为基准日的750日均值 ｜ 背景色按列独立着色，箭头为较上一行变动(bp)</div>
             </div>
-        </div>
-
-        <!-- 第三行 -->
-        <div class="card">
-            <div class="card-title">
-                <span>📆 历史关键时点对比</span>
-                <span class="badge">年末 / 月末 · 按列独立着色</span>
-            </div>
-            <div class="ma-controls">
-                <label for="historyDiffFromSelect">对比日期A</label>
-                <select id="historyDiffFromSelect"></select>
-                <label for="historyDiffToSelect">对比日期B</label>
-                <select id="historyDiffToSelect"></select>
-            </div>
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>期限</th>
-                            <th>日期A (%)</th>
-                            <th>日期B (%)</th>
-                            <th>B-A (bp)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="historyDiffBody"></tbody>
-                </table>
-            </div>
-            <div class="table-wrap" id="historyTableWrap">
-                <table>
-                    <thead id="historyHeader"></thead>
-                    <tbody id="historyBody"></tbody>
-                </table>
-            </div>
-            <div class="footnote">每列独立着色（柔和热力图：低→淡绿，中→淡黄，高→淡红）</div>
         </div>
 
         </div><!-- /view-detail -->
@@ -481,30 +474,17 @@
                         <div class="card-title">
                             <span>综合溢价曲线对比</span>
                             <span class="badge">上年度末 / 上月末 / 上日 / 所选日</span>
-                            <div class="date-selector">
-                                <label for="lifeDiffFromSelect" style="font-size:13px;font-weight:400;">日期A：</label>
-                                <select id="lifeDiffFromSelect"></select>
-                                <label for="lifeDiffToSelect" style="font-size:13px;font-weight:400;">日期B：</label>
-                                <select id="lifeDiffToSelect"></select>
-                            </div>
                         </div>
                         <div class="chart-box tall" id="lifeCompareChart"></div>
                     </div>
                     <div class="card" style="box-shadow:none;border-color:#e5edf6;">
                         <div class="card-title">
                             <span>综合溢价数据对比</span>
-                            <span class="badge">B-A，单位bp</span>
+                            <span class="badge">关键期限 · 同所选日期比较</span>
                         </div>
                         <div class="table-wrap">
                             <table>
-                                <thead>
-                                    <tr>
-                                        <th>期限</th>
-                                        <th>日期A (%)</th>
-                                        <th>日期B (%)</th>
-                                        <th>B-A (bp)</th>
-                                    </tr>
-                                </thead>
+                                <thead id="lifeDiffHeader"></thead>
                                 <tbody id="lifeDiffBody"></tbody>
                             </table>
                         </div>
@@ -2418,27 +2398,31 @@
         }
 
         function renderHistoryDiffTable() {
+            const thead = document.getElementById('historyDiffHeader');
             const tbody = document.getElementById('historyDiffBody');
             const fromSelect = document.getElementById('historyDiffFromSelect');
             const toSelect = document.getElementById('historyDiffToSelect');
-            if (!tbody || !fromSelect || !toSelect) return;
+            if (!thead || !tbody || !fromSelect || !toSelect) return;
             const fromRow = getRatesForBasis(fromSelect.value);
             const toRow = getRatesForBasis(toSelect.value);
-            const keys = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', '1-10Y', '1-20Y', '21-40Y'];
+            const keys = allTerms.filter(t => !isNaN(parseFloat(t))).concat(['1-10Y', '1-15Y', '1-20Y', '21-40Y']);
             function value(row, key) {
                 if (!row) return null;
                 if (key === '1-10Y') return avgRates(row, '1', '10');
+                if (key === '1-15Y') return avgRates(row, '1', '15');
                 if (key === '1-20Y') return avgRates(row, '1', '20');
                 if (key === '21-40Y') return avgRates(row, '21', '40');
                 return sanitizeRate(row[key]);
             }
             const fmtVal = v => v !== null && v !== undefined && isFinite(v) ? v.toFixed(4) : '—';
             const fmtDiff = diff => diff === null ? '—' : (diff > 0 ? '+' : '') + diff.toFixed(1);
-            tbody.innerHTML = keys.map(key => {
-                const a = value(fromRow, key);
-                const b = value(toRow, key);
-                return '<tr><td><strong>' + key + '</strong></td><td>' + fmtVal(a) + '</td><td>' + fmtVal(b) + '</td><td>' + fmtDiff(safeDiffBp(b, a)) + '</td></tr>';
-            }).join('');
+            thead.innerHTML = '<tr><th>日期 / 期限</th>' + keys.map(key => '<th>' + key + '</th>').join('') + '</tr>';
+            const fromCells = keys.map(key => '<td>' + fmtVal(value(fromRow, key)) + '</td>').join('');
+            const toCells = keys.map(key => '<td>' + fmtVal(value(toRow, key)) + '</td>').join('');
+            const diffCells = keys.map(key => '<td>' + fmtDiff(safeDiffBp(value(toRow, key), value(fromRow, key))) + '</td>').join('');
+            tbody.innerHTML = '<tr><td><strong>' + fromSelect.value + '</strong></td>' + fromCells + '</tr>' +
+                '<tr><td><strong>' + toSelect.value + '</strong></td>' + toCells + '</tr>' +
+                '<tr><td><strong>差值(B-A, bp)</strong></td>' + diffCells + '</tr>';
         }
 
         // ================================================================
@@ -3530,42 +3514,23 @@
             return getLifeRows(idx, lifeSelectedBenchmark, lifeSelectedSpreadBond).premiumRow || [];
         }
 
-        function populateLifeDiffSelectors() {
-            const fromSelect = document.getElementById('lifeDiffFromSelect');
-            const toSelect = document.getElementById('lifeDiffToSelect');
-            if (!fromSelect || !toSelect || !lifeDiscountData) return;
-            const dates = lifeDiscountData.dates || [];
-            const current = lifeSelectedDate || dates[dates.length - 1];
-            const prev = getLifeComparisonDates(current).prevTrade || current;
-            [fromSelect, toSelect].forEach(sel => {
-                const keep = sel.value;
-                sel.innerHTML = '';
-                for (const d of dates.slice(-500)) {
-                    const opt = document.createElement('option');
-                    opt.value = d;
-                    opt.textContent = d;
-                    sel.appendChild(opt);
-                }
-                if (keep && dates.includes(keep)) sel.value = keep;
-            });
-            if (!fromSelect.value) fromSelect.value = prev;
-            if (!toSelect.value) toSelect.value = current;
-        }
-
-        function renderLifeCompareChart() {
-            if (!lifeDiscountData) return;
-            populateLifeDiffSelectors();
-            const el = document.getElementById('lifeCompareChart');
-            if (!el) return;
-            if (!lifeCompareChart) lifeCompareChart = echarts.init(el);
-            const targetDate = lifeSelectedDate || lifeDiscountData.dates[lifeDiscountData.dates.length - 1];
+        function lifeComparisonItems(targetDate) {
             const dates = getLifeComparisonDates(targetDate);
-            const items = [
+            return [
                 { name: '上年度末', date: dates.lastYearTrade, color: '#e74c3c', line: 'dashed' },
                 { name: '上月末', date: dates.lastMonthTrade, color: '#2ecc71', line: 'dashed' },
                 { name: '上日', date: dates.prevTrade, color: '#7a8ea8', line: 'dotted' },
                 { name: '所选日', date: targetDate, color: '#1f4a7a', line: 'solid' }
             ].filter(item => item.date);
+        }
+
+        function renderLifeCompareChart() {
+            if (!lifeDiscountData) return;
+            const el = document.getElementById('lifeCompareChart');
+            if (!el) return;
+            if (!lifeCompareChart) lifeCompareChart = echarts.init(el);
+            const targetDate = lifeSelectedDate || lifeDiscountData.dates[lifeDiscountData.dates.length - 1];
+            const items = lifeComparisonItems(targetDate);
             const terms = lifeDiscountData.terms;
             const x = terms.map(t => parseFloat(t));
             const series = items.map(item => {
@@ -3596,21 +3561,26 @@
 
         function renderLifeDiffTable() {
             if (!lifeDiscountData) return;
-            populateLifeDiffSelectors();
+            const thead = document.getElementById('lifeDiffHeader');
             const tbody = document.getElementById('lifeDiffBody');
-            const fromSelect = document.getElementById('lifeDiffFromSelect');
-            const toSelect = document.getElementById('lifeDiffToSelect');
-            if (!tbody || !fromSelect || !toSelect) return;
-            const rowA = lifePremiumRowForDate(fromSelect.value);
-            const rowB = lifePremiumRowForDate(toSelect.value);
+            if (!thead || !tbody) return;
+            const targetDate = lifeSelectedDate || lifeDiscountData.dates[lifeDiscountData.dates.length - 1];
+            const dates = getLifeComparisonDates(targetDate);
+            const currentRow = lifePremiumRowForDate(targetDate);
+            const lastYearRow = dates.lastYearTrade ? lifePremiumRowForDate(dates.lastYearTrade) : [];
+            const lastMonthRow = dates.lastMonthTrade ? lifePremiumRowForDate(dates.lastMonthTrade) : [];
+            const prevRow = dates.prevTrade ? lifePremiumRowForDate(dates.prevTrade) : [];
             const keyTerms = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '40Y', '50Y'];
-            const fmt = v => v != null && isFinite(v) ? v.toFixed(4) : '—';
+            thead.innerHTML = '<tr><th>期限</th><th>所选日 (%)</th><th>上年度末 (%)</th><th>上月末 (%)</th><th>上日 (%)</th><th>较上日 (bp)</th><th>较上月末 (bp)</th><th>较上年度末 (bp)</th></tr>';
+            const fmtVal = v => v != null && isFinite(v) ? v.toFixed(4) : '—';
+            const fmtDiff = diff => diff === null ? '—' : (diff > 0 ? '+' : '') + diff.toFixed(1);
             tbody.innerHTML = keyTerms.map(term => {
                 const idx = lifeDiscountData.terms.indexOf(term);
-                const a = idx >= 0 ? rowA[idx] : null;
-                const b = idx >= 0 ? rowB[idx] : null;
-                const diff = a != null && b != null ? (b - a) * 100 : null;
-                return '<tr><td><strong>' + term + '</strong></td><td>' + fmt(a) + '</td><td>' + fmt(b) + '</td><td>' + (diff != null ? (diff > 0 ? '+' : '') + diff.toFixed(1) : '—') + '</td></tr>';
+                const current = idx >= 0 ? currentRow[idx] : null;
+                const lastYear = idx >= 0 ? lastYearRow[idx] : null;
+                const lastMonth = idx >= 0 ? lastMonthRow[idx] : null;
+                const prev = idx >= 0 ? prevRow[idx] : null;
+                return '<tr><td><strong>' + term + '</strong></td><td>' + fmtVal(current) + '</td><td>' + fmtVal(lastYear) + '</td><td>' + fmtVal(lastMonth) + '</td><td>' + fmtVal(prev) + '</td><td>' + fmtDiff(safeDiffBp(current, prev)) + '</td><td>' + fmtDiff(safeDiffBp(current, lastMonth)) + '</td><td>' + fmtDiff(safeDiffBp(current, lastYear)) + '</td></tr>';
             }).join('');
         }
 
@@ -4038,8 +4008,6 @@
                 lifeLongPremiumMode = this.value;
                 renderLifeDiscountView();
             });
-            document.getElementById('lifeDiffFromSelect').addEventListener('change', renderLifeDiffTable);
-            document.getElementById('lifeDiffToSelect').addEventListener('change', renderLifeDiffTable);
             document.getElementById('presetPolicyGroup').addEventListener('click', function(e) {
                 if (!e.target || !e.target.dataset.policy) return;
                 presetPolicy = e.target.dataset.policy;
