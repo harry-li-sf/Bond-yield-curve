@@ -175,13 +175,31 @@ class FrontendTests(unittest.TestCase):
 
     def test_premium_ma_cards_are_aligned_and_compare_curve_is_full_term(self):
         text = INDEX.read_text(encoding="utf-8")
-        self.assertIn('class="grid-2 premium-ma-grid"', text)
+        self.assertIn('class="premium-ma-stack"', text)
         self.assertIn('class="card premium-ma-card"', text)
-        self.assertIn(".premium-ma-card { display: flex;", text)
-        self.assertIn(".premium-ma-card .table-wrap {", text)
+        self.assertIn('class="premium-ma-content"', text)
+        self.assertIn(".premium-ma-stack { display: grid;", text)
+        self.assertIn(".premium-ma-content { display: grid;", text)
+        self.assertIn(".premium-ma-card .table-wrap { overflow: visible;", text)
+        self.assertNotIn("max-height: 235px", text)
         self.assertIn("function lifeFullCompareValueAt", text)
         self.assertIn("benchmark + premium", text)
-        self.assertIn("lifeFullCompareValueAt(idx, term)", text)
+        self.assertIn("lifeFullCompareValueAt(dateIdx, term)", text)
+
+    def test_premium_ma_curve_and_period_controls_drive_charts_and_tables(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('id="maCurveGroupA"', text)
+        self.assertIn('id="maCurveGroupB"', text)
+        self.assertIn('value="base" checked', text)
+        self.assertIn('value="compare" checked', text)
+        self.assertIn("let maSelectedCurves = ['base', 'compare'];", text)
+        self.assertIn("let maActivePeriods = [60];", text)
+        self.assertIn("function toggleMACurve", text)
+        self.assertIn("function normalizeMASelection", text)
+        self.assertIn("maSelectedCurves.length > 1 && maActivePeriods.length > 1", text)
+        self.assertIn("function buildPremiumMASeries", text)
+        self.assertIn("renderMATimeSeriesTable(seriesRows", text)
+        self.assertIn("renderMACurveTable(seriesRows", text)
 
 
 if __name__ == "__main__":
