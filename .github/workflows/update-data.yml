@@ -37,21 +37,36 @@ jobs:
       - name: Set timezone
         run: sudo timedatectl set-timezone Asia/Shanghai
 
+      - name: Determine data update mode
+        id: data_mode
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run_data_update=true" >> "$GITHUB_OUTPUT"
+            echo "Scheduled/manual run: data update enabled"
+          else
+            echo "run_data_update=false" >> "$GITHUB_OUTPUT"
+            echo "Push run: deploy only, data update skipped"
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Install dependencies
+        if: steps.data_mode.outputs.run_data_update == 'true'
         run: pip install requests
 
       - name: Run tests
         run: python -m unittest discover -s tests -v
 
       - name: Fetch latest yield curve data
+        if: steps.data_mode.outputs.run_data_update == 'true'
         run: python ci_update.py
 
       - name: Validate data files
+        if: steps.data_mode.outputs.run_data_update == 'true'
         run: |
           for f in data.json data_cdb.json data_gov_ytm.json data_cdb_ytm.json data_*.json life_discount.json preset_model_data.js summary.json; do
             if [ -f "$f" ]; then
@@ -65,6 +80,7 @@ jobs:
           done
 
       - name: Commit and push data updates
+        if: steps.data_mode.outputs.run_data_update == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
