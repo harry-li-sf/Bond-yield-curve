@@ -203,6 +203,14 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("AAA企业债-国债（旧准则）", text)
         self.assertIn("国开债-国债（新准则）", text)
 
+    def test_all_premium_evaluation_defaults_use_prior_month_end(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn("function previousMonthEndOnOrBefore", text)
+        self.assertIn("function defaultLifeEvaluationDate", text)
+        self.assertIn("previousMonthEndOnOrBefore(currentIsoDate())", text)
+        self.assertIn("lifeSelectedDate = defaultLifeEvaluationDate();", text)
+        self.assertIn("const evalDate = defaultLifeEvaluationDate(evalDateOverride);", text)
+
     def test_discount_generation_default_compare_date_is_prior_year_end(self):
         text = INDEX.read_text(encoding="utf-8")
         self.assertIn("function defaultDiscountCompareDate", text)
@@ -229,6 +237,7 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("function renderDiscountGenerationTable", text)
         self.assertIn("const DISCOUNT_GENERATION_COLUMNS", text)
         self.assertIn("row.header", text)
+        self.assertIn("discount-block-label", text)
         self.assertIn("<th>关键期限</th>", text)
         self.assertIn("评估时点曲线", text)
         self.assertIn("对比时点曲线", text)
@@ -238,6 +247,7 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("即期折现率", text)
         self.assertIn("远期折现率", text)
         self.assertNotIn("<th>分块</th><th>曲线</th>", text)
+        self.assertNotIn("<td></td><td><strong>", text)
 
     def test_ma_cards_are_available_under_premium_with_dual_curve_tables(self):
         text = INDEX.read_text(encoding="utf-8")
