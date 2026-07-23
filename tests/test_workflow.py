@@ -30,6 +30,14 @@ class WorkflowPushTests(unittest.TestCase):
         self.assertIn("steps.data_mode.outputs.run_data_update == 'true'", text)
         self.assertIn("Fetch latest yield curve data", text)
 
+    def test_dependencies_are_installed_before_tests_on_push_runs(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        install_index = text.index("- name: Install dependencies")
+        tests_index = text.index("- name: Run tests")
+        install_block = text[install_index:tests_index]
+        self.assertIn("pip install requests", install_block)
+        self.assertNotIn("if: steps.data_mode.outputs.run_data_update", install_block)
+
 
 if __name__ == "__main__":
     unittest.main()
