@@ -445,9 +445,9 @@
                     <div class="card premium-full-card" id="premiumLiquidityCard">
                         <div class="card-title"><span>前20年税收、流动性溢价</span><span class="premium-rule-badge">旧准则 / 新准则</span></div>
                         <div class="premium-input-grid">
-                            <label>观察时点1<select id="premiumLiquidityObservationDate1"></select></label>
-                            <label>观察时点2<select id="premiumLiquidityObservationDate2"></select></label>
-                            <label>观察时点3<select id="premiumLiquidityObservationDate3"></select></label>
+                            <label>其他观察时点1<select id="premiumLiquidityObservationDate1"></select></label>
+                            <label>其他观察时点2<select id="premiumLiquidityObservationDate2"></select></label>
+                            <label>其他观察时点3<select id="premiumLiquidityObservationDate3"></select></label>
                             <label>评估时点<select id="premiumLiquidityEvalDate"></select></label>
                             <label>预测时点<select id="premiumLiquidityForecastDate"></select></label>
                             <label>移动平均<select id="premiumLiquidityPeriod"><option value="2500">2500日移动平均</option><option value="750">750日移动平均</option><option value="250">250日移动平均</option></select></label>
@@ -458,9 +458,9 @@
                     <div class="card premium-full-card" id="premiumCounterCycleCard">
                         <div class="card-title"><span>前20年逆周期溢价</span><span class="premium-rule-badge">旧准则</span></div>
                         <div class="premium-input-grid">
-                            <label>观察时点1<select id="premiumCounterObservationDate1"></select></label>
-                            <label>观察时点2<select id="premiumCounterObservationDate2"></select></label>
-                            <label>观察时点3<select id="premiumCounterObservationDate3"></select></label>
+                            <label>其他观察时点1<select id="premiumCounterObservationDate1"></select></label>
+                            <label>其他观察时点2<select id="premiumCounterObservationDate2"></select></label>
+                            <label>其他观察时点3<select id="premiumCounterObservationDate3"></select></label>
                             <label>评估时点<select id="premiumCounterEvalDate"></select></label>
                             <label>预测时点<select id="premiumCounterForecastDate"></select></label>
                         </div>
@@ -470,9 +470,9 @@
                     <div class="card premium-full-card" id="premiumLongSpreadCard">
                         <div class="card-title"><span>40年后溢价</span><span class="premium-rule-badge">旧准则 / 新准则</span></div>
                         <div class="premium-input-grid">
-                            <label>观察时点1<select id="premiumLongObservationDate1"></select></label>
-                            <label>观察时点2<select id="premiumLongObservationDate2"></select></label>
-                            <label>观察时点3<select id="premiumLongObservationDate3"></select></label>
+                            <label>其他观察时点1<select id="premiumLongObservationDate1"></select></label>
+                            <label>其他观察时点2<select id="premiumLongObservationDate2"></select></label>
+                            <label>其他观察时点3<select id="premiumLongObservationDate3"></select></label>
                             <label>评估时点<select id="premiumLongEvalDate"></select></label>
                             <label>预测时点<select id="premiumLongForecastDate"></select></label>
                         </div>
@@ -3884,7 +3884,13 @@
             },
             counterCycle: {
                 terms: ['19Y', '20Y', '21Y', '22Y', '23Y'],
-                fallback: [12, 16, 20, 21, 21]
+                fallback: {
+                    '2023': [12, 12, 12, 12, 12],
+                    '2024': [16, 16, 16, 16, 16],
+                    '2025': [20, 20, 20, 20, 20],
+                    eval: [21, 21, 21, 21, 21],
+                    forecast: [21, 21, 21, 21, 21]
+                }
             },
             longSpread: {
                 fallback: {
@@ -3909,14 +3915,20 @@
         ];
         const DISCOUNT_RULE_NAMES = { legacy: '旧准则', new: '新准则' };
         const DISCOUNT_METRIC_NAMES = { base: '基础曲线', premium: '综合溢价', spot: '即期折现率', forward: '远期折现率' };
+        const DISCOUNT_GENERATION_COLUMNS = [
+            { label: '基础曲线', key: 'base' },
+            { label: '综合溢价', key: 'premium' },
+            { label: '即期折现率', key: 'spot' },
+            { label: '远期折现率', key: 'forward' }
+        ];
         const DISCOUNT_TABLE_ITEMS = [
-            { key: '1Y', label: '1Y' }, { key: '5Y', label: '5Y' }, { key: '10Y', label: '10Y' },
-            { key: '15Y', label: '15Y' }, { key: '20Y', label: '20Y' }, { key: '25Y', label: '25Y' },
-            { key: '30Y', label: '30Y' }, { key: '40Y', label: '40Y' },
-            { key: 'avg_1_3', label: '1-3Y平均', avg: [1, 3] },
-            { key: 'avg_4_20', label: '4-20Y平均', avg: [4, 20] },
-            { key: 'avg_1_20', label: '1-20Y平均', avg: [1, 20] },
-            { key: 'avg_21_40', label: '21-40Y平均', avg: [21, 40] }
+            { key: '1Y', label: '1' }, { key: '5Y', label: '5' }, { key: '10Y', label: '10' },
+            { key: '15Y', label: '15' }, { key: '20Y', label: '20' }, { key: '25Y', label: '25' },
+            { key: '30Y', label: '30' }, { key: '40Y', label: '40' },
+            { key: 'avg_1_3', label: '1-3年平均', avg: [1, 3] },
+            { key: 'avg_4_20', label: '4-20年平均', avg: [4, 20] },
+            { key: 'avg_1_20', label: '1-20年平均', avg: [1, 20] },
+            { key: 'avg_21_40', label: '21-40年平均', avg: [21, 40] }
         ];
 
         function normalizeLifeDiscountData(raw) {
@@ -3963,7 +3975,7 @@
             return {
                 evalDate,
                 forecastDate: evalYear + '-12-31',
-                observationDates: [evalYear - 3, evalYear - 2, evalYear - 1].map(y => lifeDateOnOrBefore(y + '-12-31')).filter(Boolean)
+                observationDates: ['2023-12-31', '2024-12-31', '2025-12-31']
             };
         }
 
@@ -3980,10 +3992,10 @@
                 opt.textContent = d;
                 select.appendChild(opt);
             }
-            if (includeForecast && selectedDate && !dates.includes(selectedDate)) {
+            if (selectedDate && !dates.includes(selectedDate)) {
                 const opt = document.createElement('option');
                 opt.value = selectedDate;
-                opt.textContent = selectedDate + '（平推）';
+                opt.textContent = selectedDate + (includeForecast ? '（平推）' : '');
                 select.insertBefore(opt, select.firstChild);
             }
             if (selectedDate) select.value = selectedDate;
@@ -4039,9 +4051,27 @@
         }
 
         function premiumMonitorRows(defaults) {
-            const rows = defaults.observationDates.map(d => ({ label: d, date: d, fallbackKey: d.slice(0, 4), type: 'actual' }));
-            rows.push({ label: defaults.evalDate || '评估时点', date: defaults.evalDate, fallbackKey: 'eval', type: 'eval' });
-            rows.push({ label: defaults.forecastDate || '预测时点', date: defaults.evalDate, fallbackKey: 'forecast', type: 'forecast' });
+            const rows = defaults.observationDates.map(d => ({
+                roleLabel: '其他观察时点',
+                label: d,
+                date: d,
+                fallbackKey: d.slice(0, 4),
+                type: 'actual'
+            }));
+            rows.push({
+                roleLabel: '评估时点',
+                label: defaults.evalDate || '评估时点',
+                date: defaults.evalDate,
+                fallbackKey: 'eval',
+                type: 'eval'
+            });
+            rows.push({
+                roleLabel: '预测时点',
+                label: defaults.forecastDate || '预测时点',
+                date: defaults.evalDate,
+                fallbackKey: 'forecast',
+                type: 'forecast'
+            });
             return rows;
         }
 
@@ -4064,7 +4094,7 @@
             const liquidityRows = premiumMonitorRows(liquidityDates);
             const liquidityHeadGroups = PREMIUM_LIQUIDITY_CURVES.map(curve => '<th colspan="' + liquidityTerms.length + '">' + curve.label + '</th>').join('');
             const liquidityHeadTerms = PREMIUM_LIQUIDITY_CURVES.map(() => liquidityTerms.map(t => '<th>' + t + '</th>').join('')).join('');
-            document.getElementById('premiumLiquidityHeader').innerHTML = '<tr><th rowspan="2">时点</th>' + liquidityHeadGroups + '</tr><tr>' + liquidityHeadTerms + '</tr>';
+            document.getElementById('premiumLiquidityHeader').innerHTML = '<tr><th rowspan="2">类型</th><th rowspan="2">日期</th>' + liquidityHeadGroups + '</tr><tr>' + liquidityHeadTerms + '</tr>';
             document.getElementById('premiumLiquidityBody').innerHTML = liquidityRows.map(row => {
                 let cells = '';
                 for (const curve of PREMIUM_LIQUIDITY_CURVES) {
@@ -4075,18 +4105,19 @@
                         return '<td>' + fmtBpValue(computed != null ? computed : fallback) + '</td>';
                     }).join('');
                 }
-                return '<tr><td><strong>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</strong></td>' + cells + '</tr>';
+                return '<tr><td><strong>' + row.roleLabel + '</strong></td><td>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</td>' + cells + '</tr>';
             }).join('');
 
             const counterTerms = PREMIUM_EXCEL_DEFAULTS.counterCycle.terms;
-            document.getElementById('premiumCounterCycleHeader').innerHTML = '<tr><th>时点</th>' + counterTerms.map(t => '<th>' + t + '</th>').join('') + '</tr>';
+            document.getElementById('premiumCounterCycleHeader').innerHTML = '<tr><th>类型</th><th>日期</th>' + counterTerms.map(t => '<th>' + t + '</th>').join('') + '</tr>';
             document.getElementById('premiumCounterCycleBody').innerHTML = premiumMonitorRows(counterDates).map(row => {
-                const cells = counterTerms.map((term, i) => '<td>' + fmtBpValue(PREMIUM_EXCEL_DEFAULTS.counterCycle.fallback[i]) + '</td>').join('');
-                return '<tr><td><strong>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</strong></td>' + cells + '</tr>';
+                const fallback = PREMIUM_EXCEL_DEFAULTS.counterCycle.fallback[row.fallbackKey] || PREMIUM_EXCEL_DEFAULTS.counterCycle.fallback.eval;
+                const cells = counterTerms.map((term, i) => '<td>' + fmtBpValue(fallback[i]) + '</td>').join('');
+                return '<tr><td><strong>' + row.roleLabel + '</strong></td><td>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</td>' + cells + '</tr>';
             }).join('');
 
             const longTerms = ['10Y口径', '20Y口径', '40-50Y平均口径'];
-            document.getElementById('premiumLongSpreadHeader').innerHTML = '<tr><th>时点</th>' + longTerms.map(t => '<th>' + t + '</th>').join('') + '</tr>';
+            document.getElementById('premiumLongSpreadHeader').innerHTML = '<tr><th>类型</th><th>日期</th>' + longTerms.map(t => '<th>' + t + '</th>').join('') + '</tr>';
             document.getElementById('premiumLongSpreadBody').innerHTML = premiumMonitorRows(longDates).map(row => {
                 const baseDate = row.type === 'forecast' ? longDates.evalDate : row.date;
                 const values = ['10Y', '20Y', '20Y'].map((term, i) => {
@@ -4096,7 +4127,7 @@
                     const computed = rate40 != null && rate50 != null && short != null ? ((rate40 + rate50) / 2 - short) * 100 : null;
                     return computed != null ? Number(computed.toFixed(1)) : PREMIUM_EXCEL_DEFAULTS.longSpread.fallback[row.fallbackKey]?.[i];
                 });
-                return '<tr><td><strong>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</strong></td>' + values.map(v => '<td>' + fmtBpValue(v) + '</td>').join('') + '</tr>';
+                return '<tr><td><strong>' + row.roleLabel + '</strong></td><td>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</td>' + values.map(v => '<td>' + fmtBpValue(v) + '</td>').join('') + '</tr>';
             }).join('');
         }
 
@@ -4238,12 +4269,6 @@
         }
 
         function discountGenerationTableRows(data, forExport = false) {
-            const curveRows = [
-                { label: '基础曲线', key: 'base' },
-                { label: '综合溢价', key: 'premium' },
-                { label: '即期折现率', key: 'spot' },
-                { label: '远期折现率', key: 'forward' }
-            ];
             const rows = [];
             const valueCell = (row, item) => {
                 const v = discountRowValue(row, item);
@@ -4253,12 +4278,19 @@
                 const diff = safeDiffBp(discountRowValue(row, item), discountRowValue(compareRow, item));
                 return forExport ? (diff != null && isFinite(diff) ? Number(diff.toFixed(2)) : '') : formatDiffCell(diff);
             };
-            rows.push({ section: '评估时点曲线', values: [] });
-            curveRows.forEach(item => rows.push({ section: '', label: item.label, values: DISCOUNT_TABLE_ITEMS.map(term => valueCell(data.rows[item.key], term)) }));
-            rows.push({ section: '对比时点曲线', values: [] });
-            curveRows.forEach(item => rows.push({ section: '', label: item.label, values: DISCOUNT_TABLE_ITEMS.map(term => valueCell(data.compareRows[item.key], term)) }));
-            rows.push({ section: '差异（评估-对比）单位bps', values: [] });
-            curveRows.forEach(item => rows.push({ section: '', label: item.label, values: DISCOUNT_TABLE_ITEMS.map(term => diffCell(data.rows[item.key], data.compareRows[item.key], term)) }));
+            const addBlock = (section, sourceRows, compareRows) => {
+                rows.push({ section, header: true });
+                DISCOUNT_TABLE_ITEMS.forEach(item => {
+                    rows.push({
+                        section: '',
+                        label: item.label,
+                        values: DISCOUNT_GENERATION_COLUMNS.map(col => compareRows ? diffCell(sourceRows[col.key], compareRows[col.key], item) : valueCell(sourceRows[col.key], item))
+                    });
+                });
+            };
+            addBlock('评估时点曲线', data.rows, null);
+            addBlock('对比时点曲线', data.compareRows, null);
+            addBlock('差异（评估-对比）单位bps', data.rows, data.compareRows);
             return rows;
         }
 
@@ -4266,10 +4298,10 @@
             const thead = document.getElementById(rule + 'DiscountTableHeader');
             const tbody = document.getElementById(rule + 'DiscountTableBody');
             if (!thead || !tbody) return;
-            thead.innerHTML = '<tr><th>分块</th><th>曲线</th>' + DISCOUNT_TABLE_ITEMS.map(item => '<th>' + item.label + '</th>').join('') + '</tr>';
+            thead.innerHTML = '';
             tbody.innerHTML = discountGenerationTableRows(data).map(row => {
-                if (row.section && row.values.length === 0) {
-                    return '<tr><td colspan="' + (DISCOUNT_TABLE_ITEMS.length + 2) + '"><strong>' + row.section + '</strong></td></tr>';
+                if (row.header) {
+                    return '<tr><th>' + row.section + '</th><th>关键期限</th>' + DISCOUNT_GENERATION_COLUMNS.map(col => '<th>' + col.label + '</th>').join('') + '</tr>';
                 }
                 return '<tr><td></td><td><strong>' + row.label + '</strong></td>' + row.values.map(v => '<td>' + v + '</td>').join('') + '</tr>';
             }).join('');
@@ -4330,9 +4362,9 @@
         function downloadDiscountGenerationExcel(rule) {
             const data = buildDiscountGenerationRows(rule);
             if (!data || !window.XLSX) return;
-            const exportRows = [['分块', '曲线'].concat(DISCOUNT_TABLE_ITEMS.map(item => item.label))];
+            const exportRows = [];
             discountGenerationTableRows(data, true).forEach(row => {
-                if (row.section && row.values.length === 0) exportRows.push([row.section].concat(Array(DISCOUNT_TABLE_ITEMS.length + 1).fill('')));
+                if (row.header) exportRows.push([row.section, '关键期限'].concat(DISCOUNT_GENERATION_COLUMNS.map(col => col.label)));
                 else exportRows.push(['', row.label].concat(row.values));
             });
             const exportWs = XLSX.utils.aoa_to_sheet(exportRows);
