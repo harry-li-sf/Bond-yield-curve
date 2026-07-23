@@ -55,7 +55,6 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        if: steps.data_mode.outputs.run_data_update == 'true'
         run: pip install requests
 
       - name: Run tests
