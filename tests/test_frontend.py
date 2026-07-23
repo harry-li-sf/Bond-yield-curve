@@ -134,6 +134,14 @@ class FrontendTests(unittest.TestCase):
         forecast_index = text.index('id="forecastChart"')
         self.assertLess(history_index, forecast_index)
 
+    def test_base_key_terms_support_custom_average_split_year(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('id="baseAverageSplitInput"', text)
+        self.assertIn("let baseAverageSplitYear = 3;", text)
+        self.assertIn("function baseAverageKeys()", text)
+        self.assertIn("baseAverageSplitYear + 1", text)
+        self.assertIn("renderKeyTermsTable();", text)
+
     def test_premium_section_is_premium_only_and_renamed(self):
         text = INDEX.read_text(encoding="utf-8")
         self.assertIn("基础曲线", text)
@@ -147,9 +155,49 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("renderLifeDiffTable", text)
         self.assertNotIn('id="lifeCurveTypeSelect"', text)
         self.assertNotIn("lifeCurveType", text)
-        self.assertNotIn("即期折现率", text)
-        self.assertNotIn("远期折现率", text)
+        self.assertIn('id="legacyDiscountMetricSelect"', text)
+        self.assertIn('id="newDiscountMetricSelect"', text)
+        self.assertIn("即期折现率", text)
+        self.assertIn("远期折现率", text)
         self.assertNotIn('id="lifeDownloadBtn"', text)
+
+    def test_premium_section_has_monitor_and_discount_generation_panels(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('id="premiumMonitorToggle"', text)
+        self.assertIn('id="premiumMonitorContent"', text)
+        self.assertIn('id="premiumDiscountToggle"', text)
+        self.assertIn('id="premiumDiscountContent"', text)
+        self.assertIn("function togglePremiumSection", text)
+        self.assertIn("premium-section.collapsed .premium-section-body", text)
+
+    def test_premium_monitor_cards_follow_excel_requirement(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('id="premiumLiquidityCard"', text)
+        self.assertIn('id="premiumCounterCycleCard"', text)
+        self.assertIn('id="premiumLongSpreadCard"', text)
+        self.assertIn('id="premiumLiquidityBody"', text)
+        self.assertIn('id="premiumCounterCycleBody"', text)
+        self.assertIn('id="premiumLongSpreadBody"', text)
+        self.assertIn("PREMIUM_EXCEL_DEFAULTS", text)
+        self.assertIn("function renderPremiumMonitor", text)
+        self.assertIn("function defaultPremiumDates", text)
+        self.assertIn("function projectLatestPremiumRow", text)
+
+    def test_discount_generation_uses_separate_legacy_and_new_cards(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('id="legacyDiscountParamsCard"', text)
+        self.assertIn('id="newDiscountParamsCard"', text)
+        self.assertIn('id="legacyDiscountChartCard"', text)
+        self.assertIn('id="newDiscountChartCard"', text)
+        self.assertIn('id="legacyDiscountTableCard"', text)
+        self.assertIn('id="newDiscountTableCard"', text)
+        self.assertIn('id="legacyDiscountChart"', text)
+        self.assertIn('id="newDiscountChart"', text)
+        self.assertIn('id="legacyDiscountMetricSelect"', text)
+        self.assertIn('id="newDiscountMetricSelect"', text)
+        self.assertIn("function buildDiscountGenerationRows", text)
+        self.assertIn("function buildRuleBaseCurve", text)
+        self.assertIn("function downloadDiscountGenerationExcel", text)
 
     def test_ma_cards_are_available_under_premium_with_dual_curve_tables(self):
         text = INDEX.read_text(encoding="utf-8")
