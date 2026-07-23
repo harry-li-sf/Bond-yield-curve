@@ -38,7 +38,14 @@
 
 网页有一个独立的 `溢价评估利率` 板块，不会重新访问外部网站，也不会重复抓取基础评估曲线。它只读取 Actions 已经生成好的基础曲线 JSON，再派生 `life_discount.json`，供 GitHub Pages 静态读取。
 
-为提高 GitHub Pages 在弱网络环境下的可用性，`life_discount.json` 只保存计算所需的紧凑数据：标的曲线的 750 日移动平均、标的基础折现率曲线、其余债券 20 年以内的 750 日移动平均。网页打开第二板块时，会根据选择即时计算综合溢价、即期折现率和远期折现率。
+为提高 GitHub Pages 在弱网络环境下的可用性，`life_discount.json` 只保存计算所需的紧凑数据：标的曲线的 750 日移动平均、标的基础折现率曲线、其余债券 20 年以内的 750 日移动平均，以及溢价监测所需的 250 日、750 日、2500 日移动平均行。网页打开第二板块时，会根据选择即时计算综合溢价、即期折现率和远期折现率。
+
+第二板块当前分为两个可折叠区域：
+
+- `溢价监测`：展示前 20 年税收、流动性溢价，前 20 年逆周期溢价（旧准则）和 40 年后溢价。评估时点会按最新数据自动取上一月末可用交易日；预测时点采用“基于最新时点利率平推”，即默认沿用评估时点结果，不预测未来市场利率。
+- `折现率生成`：旧准则和新准则分成左右两套卡片展示。旧准则基础曲线使用国债 750 日移动平均并过渡到 4.5% 终极利率；新准则基础曲线优先使用同日国债即期曲线并采用同样的 20-40 年过渡逻辑。综合溢价默认前 20 年为 20bp，40 年后为 20bp，20-40 年线性插值；即期折现率 = 基础曲线 + 综合溢价；远期折现率由即期折现率逐年推导。
+
+溢价监测严格 2500 日移动平均时，只对当前需求中使用的四条即期曲线补足历史：`gov_spot`、`cdb_spot`、`rail_spot`、`corp_aaa_spot`。这些数据仍然来自第一板块同一批基础曲线 JSON，每日 Actions 先更新基础曲线，再同步派生第二板块数据，不会额外访问新的外部数据源。
 
 当前采用会计负债口径的综合溢价规则：
 
@@ -111,9 +118,9 @@ http://localhost:8000/
 如果你是在 GitHub 网页上手动更新，请上传或替换这些文件：
 
 1. 打开仓库页面，进入 `Code`。
-2. 逐个更新这些已有文件：`index.html`、`ci_update.py`、`README.md`、`requirements.txt`。
+2. 逐个更新这些已有文件：`index.html`、`ci_update.py`、`README.md`。
 3. 更新 `.github/workflows/update-data.yml`：在 GitHub 文件列表打开 `.github` -> `workflows` -> `update-data.yml`，点铅笔图标，把本地同名文件内容全部替换进去。
-4. 更新测试文件：`tests/test_ci_update.py` 和 `tests/test_workflow.py`。如果 GitHub 上没有对应文件，点 `Add file` -> `Create new file`，文件名填完整路径，例如 `tests/test_ci_update.py`。
+4. 更新测试文件：`tests/test_ci_update.py` 和 `tests/test_frontend.py`。如果 GitHub 上没有对应文件，点 `Add file` -> `Create new file`，文件名填完整路径，例如 `tests/test_ci_update.py`。
 5. 上传或替换 `life_discount.json` 和 `preset_model_data.js`。这两个文件可以让网页立刻显示“溢价评估利率”和“预定利率研究值”；如果不手动上传，也可以等 GitHub Actions 跑完后自动生成。
 6. 不要上传 `example`、`.git`、`.agents`、`.tmp_pdf_pages`、`__pycache__`。
 7. 提交标题可以写：`add preset rate research section`。

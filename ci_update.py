@@ -29,10 +29,13 @@ PRESET_MODEL_FILE = "preset_model_data.js"
 DATA_SCHEMA_VERSION = 2
 LIFE_DISCOUNT_SCHEMA_VERSION = 3
 START_DATE = "2020-01-02"
+PREMIUM_HISTORY_START_DATE = "2014-01-01"
 SUMMARY_TERMS = ["1Y", "5Y", "10Y", "20Y", "30Y"]
 LIFE_TERMS = [f"{i}Y" for i in range(1, 51)]
 LIFE_SPREAD_TERMS = [f"{i}Y" for i in range(1, 21)]
 LIFE_MA_PERIOD = 750
+LIFE_MONITOR_MA_PERIODS = [250, 750, 2500]
+LIFE_MONITOR_DATASET_KEYS = ["gov_spot", "cdb_spot", "rail_spot", "corp_aaa_spot"]
 LIFE_ULTIMATE_RATE = 4.5
 LIFE_BENCHMARK_KEYS = ["gov_spot", "cdb_spot"]
 LIFE_SHORT_SPREAD_TERM = "20Y"
@@ -187,9 +190,24 @@ def has_current_metadata(dataset: DatasetConfig, existing: dict) -> bool:
     return existing.get("meta") == dataset.meta
 
 
+def dataset_history_start(dataset: DatasetConfig) -> str:
+    if dataset.key in LIFE_MONITOR_DATASET_KEYS:
+        return PREMIUM_HISTORY_START_DATE
+    return START_DATE
+
+
+def needs_extended_history_rebuild(dataset: DatasetConfig, existing: dict) -> bool:
+    if dataset.key not in LIFE_MONITOR_DATASET_KEYS:
+        return False
+    dates = existing.get("dates") or []
+    return not dates or dates[0] > PREMIUM_HISTORY_START_DATE
+
+
 def next_fetch_date_for_dataset(dataset: DatasetConfig, existing: dict) -> str:
+    if needs_extended_history_rebuild(dataset, existing):
+        return dataset_history_start(dataset)
     if not dataset.is_legacy_file and not has_current_metadata(dataset, existing):
-        return START_DATE
+        return dataset_history_start(dataset)
     return next_fetch_date(existing)
 
 
@@ -346,7 +364,9 @@ def merge_rates(existing: dict, terms: List[str], rates_by_date: Dict[str, Dict[
 def update_dataset(dataset: DatasetConfig, today_str: str) -> bool:
     existing = load_existing(dataset.filename, dataset.terms)
     start = next_fetch_date_for_dataset(dataset, existing)
-    if start == START_DATE and not dataset.is_legacy_file and not has_current_metadata(dataset, existing):
+    if needs_extended_history_rebuild(dataset, existing):
+        existing = empty_dataset(dataset)
+    if start == dataset_history_start(dataset) and not dataset.is_legacy_file and not has_current_metadata(dataset, existing):
         existing = empty_dataset(dataset)
     if start > today_str:
         return False
@@ -388,7 +408,9 @@ def update_all_datasets(today_str: str) -> Dict[str, bool]:
     for dataset in ALL_DATASETS:
         state = load_existing(dataset.filename, dataset.terms)
         start = next_fetch_date_for_dataset(dataset, state)
-        if start == START_DATE and not dataset.is_legacy_file and not has_current_metadata(dataset, state):
+        if needs_extended_history_rebuild(dataset, state):
+            state = empty_dataset(dataset)
+        elif start == dataset_history_start(dataset) and not dataset.is_legacy_file and not has_current_metadata(dataset, state):
             state = empty_dataset(dataset)
         states[dataset.key] = state
         if start <= today_str:
@@ -628,7 +650,17 @@ def moving_average_map(data: dict, period: int, terms: List[str]) -> Dict[str, D
     }
 
 
+def available_life_terms(data: dict) -> List[str]:
+    source_terms = set(data.get("terms") or [])
+    return [term for term in LIFE_TERMS if term in source_terms]
+
+
 def build_life_discount_data(benchmark_data: Dict[str, dict], spread_bond_data: Dict[str, dict]) -> dict:
+    monitor_data = {
+        key: data
+        for key, data in {**benchmark_data, **spread_bond_data}.items()
+        if key in LIFE_MONITOR_DATASET_KEYS and data.get("dates") and data.get("rows")
+    }
     benchmark_ma = {
         key: moving_average_map(data, LIFE_MA_PERIOD, LIFE_TERMS)
         for key, data in benchmark_data.items()
@@ -638,6 +670,13 @@ def build_life_discount_data(benchmark_data: Dict[str, dict], spread_bond_data: 
         key: moving_average_map(data, LIFE_MA_PERIOD, LIFE_SPREAD_TERMS)
         for key, data in spread_bond_data.items()
         if data.get("dates") and data.get("rows")
+    }
+    monitor_ma = {
+        str(period): {
+            key: moving_average_map(data, period, available_life_terms(data))
+            for key, data in monitor_data.items()
+        }
+        for period in LIFE_MONITOR_MA_PERIODS
     }
 
     if not benchmark_ma or not spread_bond_ma:
@@ -651,6 +690,10 @@ def build_life_discount_data(benchmark_data: Dict[str, dict], spread_bond_data: 
     base_rows: Dict[str, List[List[Optional[float]]]] = {key: [] for key in benchmark_ma}
     benchmark_rows: Dict[str, List[List[Optional[float]]]] = {key: [] for key in benchmark_ma}
     spread_bond_rows: Dict[str, List[List[Optional[float]]]] = {key: [] for key in spread_bond_ma}
+    monitor_rows: Dict[str, Dict[str, List[List[Optional[float]]]]] = {
+        period: {key: [] for key in rows_by_key}
+        for period, rows_by_key in monitor_ma.items()
+    }
     usable_dates = []
 
     for curve_date in dates:
@@ -667,6 +710,9 @@ def build_life_discount_data(benchmark_data: Dict[str, dict], spread_bond_data: 
                 base_rows[key].append(row_from_rates(LIFE_TERMS, bases_for_date[key]))
             for key, rows_by_date in spread_bond_ma.items():
                 spread_bond_rows[key].append(row_from_rates(LIFE_SPREAD_TERMS, rows_by_date[curve_date]))
+            for period, rows_by_key in monitor_ma.items():
+                for key, rows_by_date in rows_by_key.items():
+                    monitor_rows[period][key].append(row_from_rates(LIFE_TERMS, rows_by_date.get(curve_date, {})))
 
     benchmark_keys = [dataset.key for dataset in LIFE_BENCHMARKS if dataset.key in benchmark_ma]
     spread_bond_keys = [dataset.key for dataset in LIFE_SPREAD_BONDS if dataset.key in spread_bond_ma]
@@ -684,6 +730,8 @@ def build_life_discount_data(benchmark_data: Dict[str, dict], spread_bond_data: 
             "longSpreadTerm": LIFE_LONG_SPREAD_TERM,
             "longPremiumDefault": LIFE_LONG_PREMIUM_DEFAULT,
             "longPremiumOptions": LIFE_LONG_PREMIUM_OPTIONS,
+            "monitorPeriods": LIFE_MONITOR_MA_PERIODS,
+            "monitorDatasetKeys": LIFE_MONITOR_DATASET_KEYS,
         },
         "dates": usable_dates,
         "terms": LIFE_TERMS,
@@ -693,6 +741,7 @@ def build_life_discount_data(benchmark_data: Dict[str, dict], spread_bond_data: 
         "baseRows": {key: base_rows[key] for key in benchmark_keys},
         "benchmarkRows": {key: benchmark_rows[key] for key in benchmark_keys},
         "spreadBondRows": {key: spread_bond_rows[key] for key in spread_bond_keys},
+        "monitorRows": monitor_rows,
     }
 
 

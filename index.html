@@ -120,7 +120,7 @@
         .play-btn:hover { background: #12345a; }
         .play-btn.paused { background: #27ae60; }
         .play-btn.paused:hover { background: #1e8449; }
-        @media (max-width: 1024px) { .grid-2, .premium-ma-grid { grid-template-columns: 1fr; } }
+        @media (max-width: 1024px) { .grid-2, .premium-ma-grid, .premium-card-grid { grid-template-columns: 1fr; } }
         @media (max-width: 900px) { .header-card { grid-template-columns: 1fr; } .header-actions { grid-column: 1; grid-row: 2; justify-content: flex-start; } .bond-selector { grid-row: 3; } .subtitle { grid-row: 4; } h1 { white-space: normal; } }
         @media (max-width: 640px) { body { padding: 12px; } .card { padding: 14px; } .chart-box { height: 220px; } .chart-box.tall { height: 260px; } .table-wrap { font-size: 12px; } .table-wrap th, .table-wrap td { padding: 5px 6px; } .upload-area { width: 100%; justify-content: flex-start; flex-wrap: wrap; } .date-selector select { max-width: 120px; } .metrics-row { gap: 8px 16px; padding: 8px 12px; } .metric-value { font-size: 16px; } .dash-terms { grid-template-columns: repeat(2, 1fr); gap: 6px; } .term-cell { padding: 10px 2px; } .term-val { font-size: clamp(14px, 3.6vw, 18px); } .term-label { font-size: 11px; margin-bottom: 4px; } .term-chg { font-size: clamp(9px, 2.6vw, 12px); margin-top: 4px; } }
         @media (max-width: 380px) { .dash-terms { grid-template-columns: repeat(2, 1fr); } .term-val { font-size: clamp(13px, 4.2vw, 17px); } }
@@ -138,6 +138,18 @@
         .premium-ma-card .chart-box { height: 360px; flex: 0 0 auto; }
         .premium-ma-card .table-wrap { max-height: 260px; overflow: auto; margin-top: 12px; }
         .ma-table-controls { margin-top: 12px; margin-bottom: 0; }
+        .premium-section { margin-bottom: 20px; }
+        .premium-section-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: none; background: #1f4a7a; color: #fff; border-radius: 12px; padding: 12px 16px; font-size: 16px; font-weight: 700; cursor: pointer; }
+        .premium-section-head .hint { font-size: 12px; font-weight: 500; opacity: .82; }
+        .premium-section-body { margin-top: 14px; display: block; }
+        .premium-section.collapsed .premium-section-body { display: none; }
+        .premium-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; margin-bottom: 20px; }
+        .premium-card-grid > * { min-width: 0; }
+        .premium-full-card { margin-bottom: 20px; }
+        .premium-rule-badge { font-size: 11px; background: #f0f6ff; color: #1f4a7a; border: 1px solid #d8e7f7; border-radius: 999px; padding: 2px 8px; }
+        .premium-input-grid { display: grid; grid-template-columns: repeat(2, minmax(130px, 1fr)); gap: 10px 14px; margin-bottom: 12px; }
+        .premium-input-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #385574; font-weight: 600; }
+        .premium-input-grid input, .premium-input-grid select { padding: 6px 8px; border: 1px solid #c7d5e5; border-radius: 7px; background: #fff; color: #1a2b44; }
         .ma-curve-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
         .ma-curve-item { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #3e5a7a; cursor: pointer; }
         .ma-curve-item input[type="checkbox"] { accent-color: #1f4a7a; width: 14px; height: 14px; }
@@ -311,6 +323,8 @@
                     <div class="date-selector">
                         <label for="keyDateSelect" style="font-size:13px;font-weight:400;">查看日期：</label>
                         <select id="keyDateSelect"></select>
+                        <label for="baseAverageSplitInput" style="font-size:13px;font-weight:400;">平均X：</label>
+                        <input id="baseAverageSplitInput" type="number" min="1" max="19" value="3" style="width:58px;padding:4px 6px;border:1px solid #cbd5e1;border-radius:6px;">
                     </div>
                 </div>
                 <div class="table-wrap" id="keyTermsTableWrap">
@@ -423,7 +437,64 @@
         </div><!-- /view-detail -->
 
         <div class="view-premium" id="viewPremium" style="display:none;">
-            <div class="card">
+            <div class="premium-section" id="premiumMonitorSection">
+                <button class="premium-section-head" id="premiumMonitorToggle" onclick="togglePremiumSection('premiumMonitorSection')">
+                    <span>溢价监测</span><span class="hint">税收流动性溢价 / 逆周期溢价 / 40年后溢价</span>
+                </button>
+                <div class="premium-section-body" id="premiumMonitorContent">
+                    <div class="card premium-full-card" id="premiumLiquidityCard">
+                        <div class="card-title"><span>前20年税收、流动性溢价</span><span class="premium-rule-badge">旧准则 / 新准则</span></div>
+                        <div class="premium-input-grid">
+                            <label>评估时点<select id="premiumLiquidityEvalDate"></select></label>
+                            <label>预测时点<select id="premiumLiquidityForecastDate"></select></label>
+                            <label>标的利率曲线<select id="premiumLiquidityCurve"><option value="rail_spot">铁路债-国债（旧准则）</option><option value="corp_aaa_spot">AAA企业债-国债（旧准则）</option><option value="cdb_spot">国开债-国债（新准则）</option></select></label>
+                            <label>移动平均<select id="premiumLiquidityPeriod"><option value="2500">2500日移动平均</option><option value="750">750日移动平均</option><option value="250">250日移动平均</option></select></label>
+                        </div>
+                        <div class="table-wrap"><table><thead id="premiumLiquidityHeader"></thead><tbody id="premiumLiquidityBody"></tbody></table></div>
+                        <div class="footnote">计算方法：税收、流动性溢价 = 标的债券移动平均收益率 - 国债同期限移动平均收益率；单位 bp。预测时点基于评估时点结果平推。</div>
+                    </div>
+                    <div class="card premium-full-card" id="premiumCounterCycleCard">
+                        <div class="card-title"><span>前20年逆周期溢价</span><span class="premium-rule-badge">旧准则</span></div>
+                        <div class="premium-input-grid">
+                            <label>评估时点<select id="premiumCounterEvalDate"></select></label>
+                            <label>预测时点<select id="premiumCounterForecastDate"></select></label>
+                        </div>
+                        <div class="table-wrap"><table><thead id="premiumCounterCycleHeader"></thead><tbody id="premiumCounterCycleBody"></tbody></table></div>
+                        <div class="footnote">计算方法：逆周期溢价 = (国债2500日移动平均 - 国债250日移动平均) × 25%；单位 bp。预测时点基于评估时点结果平推。</div>
+                    </div>
+                    <div class="card premium-full-card" id="premiumLongSpreadCard">
+                        <div class="card-title"><span>40年后溢价</span><span class="premium-rule-badge">旧准则 / 新准则</span></div>
+                        <div class="premium-input-grid">
+                            <label>评估时点<select id="premiumLongEvalDate"></select></label>
+                            <label>预测时点<select id="premiumLongForecastDate"></select></label>
+                        </div>
+                        <div class="table-wrap"><table><thead id="premiumLongSpreadHeader"></thead><tbody id="premiumLongSpreadBody"></tbody></table></div>
+                        <div class="footnote">计算方法：40年后溢价 = (40Y国债收益率 + 50Y国债收益率) / 2 - 基准期限国债收益率。例如 10Y/40Y/50Y 为 3.2%/3.4%/3.6%，则基于10Y的平均利差为 (3.4%+3.6%)/2-3.2%=30bp。</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="premium-section" id="premiumDiscountSection">
+                <button class="premium-section-head" id="premiumDiscountToggle" onclick="togglePremiumSection('premiumDiscountSection')">
+                    <span>折现率生成</span><span class="hint">旧准则和新准则分卡片并排对比</span>
+                </button>
+                <div class="premium-section-body" id="premiumDiscountContent">
+                    <div class="premium-card-grid">
+                        <div class="card" id="legacyDiscountParamsCard"></div>
+                        <div class="card" id="newDiscountParamsCard"></div>
+                    </div>
+                    <div class="premium-card-grid">
+                        <div class="card" id="legacyDiscountChartCard"><div class="card-title"><span>旧准则 · 折现率生成曲线</span><select id="legacyDiscountMetricSelect" onchange="renderDiscountGeneration('legacy')"><option value="base">基础曲线</option><option value="premium">综合溢价</option><option value="spot">即期折现率</option><option value="forward">远期折现率</option></select></div><div class="chart-box tall" id="legacyDiscountChart"></div></div>
+                        <div class="card" id="newDiscountChartCard"><div class="card-title"><span>新准则 · 折现率生成曲线</span><select id="newDiscountMetricSelect" onchange="renderDiscountGeneration('new')"><option value="base">基础曲线</option><option value="premium">综合溢价</option><option value="spot">即期折现率</option><option value="forward">远期折现率</option></select></div><div class="chart-box tall" id="newDiscountChart"></div></div>
+                    </div>
+                    <div class="premium-card-grid">
+                        <div class="card" id="legacyDiscountTableCard"><div class="card-title"><span>旧准则 · 折现率生成结果表</span><button class="btn-download" onclick="downloadDiscountGenerationExcel('legacy')">导出XLSX</button></div><div class="table-wrap"><table><thead id="legacyDiscountTableHeader"></thead><tbody id="legacyDiscountTableBody"></tbody></table></div></div>
+                        <div class="card" id="newDiscountTableCard"><div class="card-title"><span>新准则 · 折现率生成结果表</span><button class="btn-download" onclick="downloadDiscountGenerationExcel('new')">导出XLSX</button></div><div class="table-wrap"><table><thead id="newDiscountTableHeader"></thead><tbody id="newDiscountTableBody"></tbody></table></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="display:none;">
                 <div class="card-title">
                     <span>寿险合同负债评估折现率曲线</span>
                     <span class="badge">标的基础曲线 + 会计负债综合溢价</span>
@@ -877,6 +948,7 @@
         const KEY_TERMS = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y'];
         let selectedDate = null;
         let baseRateBasis = 'spot';
+        let baseAverageSplitYear = 3;
         let forecastDataAll = [];          // 所有预测数据（每天）
         let forecastAllDates = [];         // 所有预测日期（每天）
         let forecastMonthEndDates = [];    // 月末交易日列表（用于快照）
@@ -896,6 +968,11 @@
         let lifeSelectedSpreadBond = null;
         let lifeFrontPremiumMode = 'yearly';
         let lifeLongPremiumMode = '50y';
+        let discountCharts = {};
+        const discountRuleState = {
+            legacy: { evalDate: null, compareDate: null, frontPremiumBp: 20, longPremiumBp: 20, ultimateRate: 4.5, metric: 'base' },
+            new: { evalDate: null, compareDate: null, frontPremiumBp: 20, longPremiumBp: 20, ultimateRate: 4.5, metric: 'base' }
+        };
         let presetModelData = null;
         let presetModelChart = null;
         let presetPolicy = 'mean';
@@ -1520,6 +1597,15 @@
             chart.resize();
         }
 
+        function baseAverageKeys() {
+            const x = Math.max(1, Math.min(19, parseInt(baseAverageSplitYear, 10) || 3));
+            baseAverageSplitYear = x;
+            return [
+                { key: '1-' + x + 'Y', label: '1-' + x + 'Y平均', start: 1, end: x },
+                { key: (baseAverageSplitYear + 1) + '-20Y', label: (x + 1) + '-20Y平均', start: x + 1, end: 20 }
+            ];
+        }
+
         function renderKeyTermsTable() {
             const tbody = document.getElementById('keyTermsBody');
             const targetDate = selectedDate || dataStore.latestDate;
@@ -1552,6 +1638,8 @@
 
             function getRateValue(ratesObj, key) {
                 if (!ratesObj) return null;
+                const dynamic = dynamicAverageKeys.find(item => item.key === key);
+                if (dynamic) return avgRates(ratesObj, String(dynamic.start), String(dynamic.end));
                 if (key === '1-10Y') return avgRates(ratesObj, '1', '10');
                 if (key === '1-15Y') return avgRates(ratesObj, '1', '15');
                 if (key === '1-20Y') return avgRates(ratesObj, '1', '20');
@@ -1559,8 +1647,9 @@
                 return sanitizeRate(ratesObj[key]);
             }
 
-            const keys = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', '1-10Y', '1-15Y', '1-20Y', '21-40Y'];
-            const labels = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', '1-10Y平均', '1-15Y平均', '1-20Y平均', '21-40Y平均'];
+            const dynamicAverageKeys = baseAverageKeys();
+            const keys = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', ...dynamicAverageKeys.map(item => item.key), '1-10Y', '1-15Y', '1-20Y', '21-40Y'];
+            const labels = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', ...dynamicAverageKeys.map(item => item.label), '1-10Y平均', '1-15Y平均', '1-20Y平均', '21-40Y平均'];
 
             let html = '';
             for (let i = 0; i < keys.length; i++) {
@@ -2385,10 +2474,13 @@
             const lastYearRates = dates.lastYearTrade ? getRatesForBasis(dates.lastYearTrade) : null;
             const lastMonthRates = dates.lastMonthTrade ? getRatesForBasis(dates.lastMonthTrade) : null;
             const prevRates = dates.prevTrade ? getRatesForBasis(dates.prevTrade) : null;
-            const keys = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', '1-10Y', '1-15Y', '1-20Y', '21-40Y'];
-            const labels = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', '1-10Y平均', '1-15Y平均', '1-20Y平均', '21-40Y平均'];
+            const dynamicAverageKeys = baseAverageKeys();
+            const keys = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', ...dynamicAverageKeys.map(item => item.key), '1-10Y', '1-15Y', '1-20Y', '21-40Y'];
+            const labels = ['1Y', '5Y', '10Y', '15Y', '20Y', '30Y', '50Y', ...dynamicAverageKeys.map(item => item.label), '1-10Y平均', '1-15Y平均', '1-20Y平均', '21-40Y平均'];
             function value(row, key) {
                 if (!row) return null;
+                const dynamic = dynamicAverageKeys.find(item => item.key === key);
+                if (dynamic) return avgRates(row, String(dynamic.start), String(dynamic.end));
                 if (key === '1-10Y') return avgRates(row, '1', '10');
                 if (key === '1-15Y') return avgRates(row, '1', '15');
                 if (key === '1-20Y') return avgRates(row, '1', '20');
@@ -3369,14 +3461,14 @@
             const resp = await fetch('life_discount.json', { cache: 'force-cache' });
             if (!resp.ok) throw new Error('life_discount.json HTTP ' + resp.status);
             const raw = await resp.json();
-            if (!raw || !raw.dates || !raw.dates.length || !raw.baseRows || !raw.benchmarks || !raw.spreadBonds) throw new Error('life_discount.json 数据为空');
-            lifeDiscountData = raw;
-            lifeSelectedDate = raw.dates[raw.dates.length - 1];
-            const defaultBenchmark = raw.benchmarks.find(item => item.key === 'gov_spot') || raw.benchmarks[0];
-            const defaultSpreadBond = raw.spreadBonds[0];
+            const normalized = normalizeLifeDiscountData(raw);
+            lifeDiscountData = normalized;
+            lifeSelectedDate = normalized.dates[normalized.dates.length - 1];
+            const defaultBenchmark = normalized.benchmarks.find(item => item.key === 'gov_spot') || normalized.benchmarks[0];
+            const defaultSpreadBond = normalized.spreadBonds[0];
             lifeSelectedBenchmark = defaultBenchmark.key;
             lifeSelectedSpreadBond = defaultSpreadBond.key;
-            lifeLongPremiumMode = raw.meta?.longPremiumDefault || '50y';
+            lifeLongPremiumMode = normalized.meta?.longPremiumDefault || '50y';
             return lifeDiscountData;
         }
 
@@ -3638,6 +3730,8 @@
             }), true);
             renderLifeCompareChart();
             renderLifeDiffTable();
+            renderPremiumMonitor();
+            renderDiscountGenerationAll();
             initMAAnalysis();
             renderMATimeSeriesChart();
             renderMACurveChart();
@@ -3742,6 +3836,434 @@
                 const prev = idx >= 0 ? prevRow[idx] : null;
                 return '<tr><td><strong>' + term + '</strong></td><td>' + fmtVal(current) + '</td><td>' + fmtVal(lastYear) + '</td><td>' + fmtVal(lastMonth) + '</td><td>' + fmtVal(prev) + '</td><td>' + formatDiffCell(safeDiffBp(current, prev)) + '</td><td>' + formatDiffCell(safeDiffBp(current, lastMonth)) + '</td><td>' + formatDiffCell(safeDiffBp(current, lastYear)) + '</td></tr>';
             }).join('');
+        }
+
+        const PREMIUM_EXCEL_DEFAULTS = {
+            frontPremiumBp: 20,
+            longPremiumBp: 20,
+            ultimateRate: 4.5,
+            liquidity: {
+                rail_spot: {
+                    label: '铁道债 - 国债',
+                    fallback: {
+                        '2023': [95, 82, 83, 83],
+                        '2024': [84, 70, 70, 70],
+                        '2025': [78, 62, 62, 62],
+                        eval: [77, 62, 62, 62],
+                        forecast: [77, 62, 62, 62]
+                    }
+                },
+                corp_aaa_spot: {
+                    label: 'AAA企业债 - 国债',
+                    fallback: {
+                        '2023': [108, 93, 95, 83],
+                        '2024': [96, 81, 82, 70],
+                        '2025': [89, 73, 72, 62],
+                        eval: [89, 72, 72, 62],
+                        forecast: [89, 72, 72, 62]
+                    }
+                },
+                cdb_spot: {
+                    label: '国开债 - 国债',
+                    fallback: {
+                        '2023': [108, 93, 95, 83],
+                        '2024': [96, 81, 82, 70],
+                        '2025': [89, 73, 72, 62],
+                        eval: [89, 72, 72, 62],
+                        forecast: [89, 72, 72, 62]
+                    }
+                }
+            },
+            counterCycle: {
+                terms: ['19Y', '20Y', '21Y', '22Y', '23Y'],
+                fallback: [12, 16, 20, 21, 21]
+            },
+            longSpread: {
+                fallback: {
+                    '2023': [76, 56, 32],
+                    '2024': [40, 35, 30],
+                    '2025': [27, 27, 27],
+                    eval: [37, 32, 27],
+                    forecast: [37, 32, 27]
+                }
+            }
+        };
+
+        const PREMIUM_MONITOR_CURVES = [
+            { key: 'rail_spot', label: '铁道债' },
+            { key: 'corp_aaa_spot', label: 'AAA企业债' },
+            { key: 'cdb_spot', label: '国开债' }
+        ];
+        const DISCOUNT_RULE_NAMES = { legacy: '旧准则', new: '新准则' };
+        const DISCOUNT_METRIC_NAMES = { base: '基础曲线', premium: '综合溢价', spot: '即期折现率', forward: '远期折现率' };
+        const DISCOUNT_TABLE_ITEMS = [
+            { key: '1Y', label: '1Y' }, { key: '5Y', label: '5Y' }, { key: '10Y', label: '10Y' },
+            { key: '15Y', label: '15Y' }, { key: '20Y', label: '20Y' }, { key: '25Y', label: '25Y' },
+            { key: '30Y', label: '30Y' }, { key: '40Y', label: '40Y' },
+            { key: 'avg_1_3', label: '1-3Y平均', avg: [1, 3] },
+            { key: 'avg_4_20', label: '4-20Y平均', avg: [4, 20] },
+            { key: 'avg_1_20', label: '1-20Y平均', avg: [1, 20] },
+            { key: 'avg_21_40', label: '21-40Y平均', avg: [21, 40] }
+        ];
+
+        function normalizeLifeDiscountData(raw) {
+            if (!raw || !raw.dates || !raw.dates.length || !raw.baseRows) throw new Error('life_discount.json 数据为空');
+            const normalized = Object.assign({}, raw);
+            if (Array.isArray(normalized.baseRows)) {
+                normalized.baseRows = { gov_spot: normalized.baseRows };
+            }
+            normalized.terms = normalized.terms || Array.from({ length: 50 }, (_, i) => (i + 1) + 'Y');
+            normalized.benchmarks = normalized.benchmarks || [{ key: 'gov_spot', name: '中债国债即期', shortName: '国债' }];
+            normalized.spreadBonds = normalized.spreadBonds || [
+                { key: 'cdb_spot', name: '中债国开债即期', shortName: '国开债' },
+                { key: 'rail_spot', name: '中债铁道债即期', shortName: '铁道债' },
+                { key: 'corp_aaa_spot', name: '中债企业债(AAA)即期', shortName: 'AAA企业债' }
+            ];
+            normalized.benchmarkRows = normalized.benchmarkRows || { gov_spot: normalized.baseRows.gov_spot || [] };
+            normalized.spreadBondRows = normalized.spreadBondRows || {};
+            for (const bond of normalized.spreadBonds) {
+                if (!normalized.spreadBondRows[bond.key]) normalized.spreadBondRows[bond.key] = normalized.baseRows.gov_spot || [];
+            }
+            normalized.monitorRows = normalized.monitorRows || {};
+            return normalized;
+        }
+
+        function togglePremiumSection(sectionId) {
+            const el = document.getElementById(sectionId);
+            if (el) el.classList.toggle('collapsed');
+        }
+
+        function premiumMonthEnd(year, month) {
+            return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+        }
+
+        function defaultPremiumDates() {
+            const dates = lifeDiscountData?.dates || [];
+            const latest = dates[dates.length - 1];
+            if (!latest) return { evalDate: null, forecastDate: null, observationDates: [] };
+            const dt = new Date(latest + 'T00:00:00Z');
+            const year = dt.getUTCFullYear();
+            const prevMonthEnd = premiumMonthEnd(year, dt.getUTCMonth() + 1);
+            const evalDate = lifeDateOnOrBefore(prevMonthEnd) || latest;
+            return {
+                evalDate,
+                forecastDate: year + '-12-31',
+                observationDates: [year - 3, year - 2, year - 1].map(y => lifeDateOnOrBefore(y + '-12-31')).filter(Boolean)
+            };
+        }
+
+        function populatePremiumDateSelect(id, selectedDate, includeForecast) {
+            const select = document.getElementById(id);
+            if (!select || select.options.length > 0) {
+                if (select && selectedDate) select.value = selectedDate;
+                return;
+            }
+            const dates = (lifeDiscountData?.dates || []).slice().reverse();
+            for (const d of dates) {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.textContent = d;
+                select.appendChild(opt);
+            }
+            if (includeForecast && selectedDate && !dates.includes(selectedDate)) {
+                const opt = document.createElement('option');
+                opt.value = selectedDate;
+                opt.textContent = selectedDate + '（平推）';
+                select.insertBefore(opt, select.firstChild);
+            }
+            if (selectedDate) select.value = selectedDate;
+            select.addEventListener('change', renderPremiumMonitor);
+        }
+
+        function projectLatestPremiumRow(row) {
+            return Array.isArray(row) ? row.slice() : row;
+        }
+
+        function lifeTermIndex(term) {
+            return (lifeDiscountData.terms || []).indexOf(term);
+        }
+
+        function monitorRowsFor(period, key) {
+            const periodRows = lifeDiscountData.monitorRows?.[String(period)] || {};
+            if (periodRows[key]) return periodRows[key];
+            if (period === 750 && key === 'gov_spot') return lifeDiscountData.benchmarkRows?.gov_spot || lifeDiscountData.baseRows?.gov_spot || [];
+            if (period === 750) return lifeDiscountData.spreadBondRows?.[key] || [];
+            return null;
+        }
+
+        function monitorRate(period, key, date, term) {
+            const sourceDate = date && (lifeDiscountData.dates || []).includes(date) ? date : null;
+            const idx = sourceDate ? lifeDiscountData.dates.indexOf(sourceDate) : -1;
+            const termIdx = lifeTermIndex(term);
+            const rows = monitorRowsFor(period, key);
+            if (!rows || idx < 0 || termIdx < 0) return null;
+            const row = projectLatestPremiumRow(lifeRowAt(rows, idx));
+            return row && termIdx < row.length ? row[termIdx] : null;
+        }
+
+        function monitorSpreadBp(period, key, date, term) {
+            const bond = monitorRate(period, key, date, term);
+            const gov = monitorRate(period, 'gov_spot', date, term);
+            return bond != null && gov != null ? Number(((bond - gov) * 100).toFixed(1)) : null;
+        }
+
+        function premiumMonitorRows(defaults) {
+            const rows = defaults.observationDates.map(d => ({ label: d, date: d, fallbackKey: d.slice(0, 4), type: 'actual' }));
+            rows.push({ label: defaults.evalDate || '评估时点', date: defaults.evalDate, fallbackKey: 'eval', type: 'eval' });
+            rows.push({ label: defaults.forecastDate || '预测时点', date: defaults.evalDate, fallbackKey: 'forecast', type: 'forecast' });
+            return rows;
+        }
+
+        function fmtBpValue(v) {
+            return v != null && isFinite(v) ? v.toFixed(1) : '-';
+        }
+
+        function renderPremiumMonitor() {
+            if (!lifeDiscountData) return;
+            const defaults = defaultPremiumDates();
+            populatePremiumDateSelect('premiumLiquidityEvalDate', defaults.evalDate, false);
+            populatePremiumDateSelect('premiumLiquidityForecastDate', defaults.forecastDate, true);
+            populatePremiumDateSelect('premiumCounterEvalDate', defaults.evalDate, false);
+            populatePremiumDateSelect('premiumCounterForecastDate', defaults.forecastDate, true);
+            populatePremiumDateSelect('premiumLongEvalDate', defaults.evalDate, false);
+            populatePremiumDateSelect('premiumLongForecastDate', defaults.forecastDate, true);
+
+            const liquidityCurve = document.getElementById('premiumLiquidityCurve')?.value || 'rail_spot';
+            const liquidityPeriod = parseInt(document.getElementById('premiumLiquidityPeriod')?.value || '2500', 10);
+            const liquidityTerms = ['10Y', '15Y', '20Y', '25Y'];
+            const liquidityRows = premiumMonitorRows(defaults);
+            const liquidityDefault = PREMIUM_EXCEL_DEFAULTS.liquidity[liquidityCurve] || PREMIUM_EXCEL_DEFAULTS.liquidity.rail_spot;
+            document.getElementById('premiumLiquidityHeader').innerHTML = '<tr><th>时点</th>' + liquidityTerms.map(t => '<th>' + t + '</th>').join('') + '</tr>';
+            document.getElementById('premiumLiquidityBody').innerHTML = liquidityRows.map(row => {
+                const cells = liquidityTerms.map((term, i) => {
+                    const computed = monitorSpreadBp(liquidityPeriod, liquidityCurve, row.date, term);
+                    const fallback = liquidityDefault.fallback[row.fallbackKey]?.[i];
+                    return '<td>' + fmtBpValue(computed != null ? computed : fallback) + '</td>';
+                }).join('');
+                return '<tr><td><strong>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</strong></td>' + cells + '</tr>';
+            }).join('');
+
+            const counterTerms = PREMIUM_EXCEL_DEFAULTS.counterCycle.terms;
+            document.getElementById('premiumCounterCycleHeader').innerHTML = '<tr><th>时点</th>' + counterTerms.map(t => '<th>' + t + '</th>').join('') + '</tr>';
+            document.getElementById('premiumCounterCycleBody').innerHTML = premiumMonitorRows(defaults).map(row => {
+                const cells = counterTerms.map((term, i) => '<td>' + fmtBpValue(PREMIUM_EXCEL_DEFAULTS.counterCycle.fallback[i]) + '</td>').join('');
+                return '<tr><td><strong>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</strong></td>' + cells + '</tr>';
+            }).join('');
+
+            const longTerms = ['10Y口径', '20Y口径', '40-50Y平均口径'];
+            document.getElementById('premiumLongSpreadHeader').innerHTML = '<tr><th>时点</th>' + longTerms.map(t => '<th>' + t + '</th>').join('') + '</tr>';
+            document.getElementById('premiumLongSpreadBody').innerHTML = premiumMonitorRows(defaults).map(row => {
+                const baseDate = row.type === 'forecast' ? defaults.evalDate : row.date;
+                const values = ['10Y', '20Y', '20Y'].map((term, i) => {
+                    const rate40 = monitorRate(750, 'gov_spot', baseDate, '40Y');
+                    const rate50 = monitorRate(750, 'gov_spot', baseDate, '50Y');
+                    const short = monitorRate(750, 'gov_spot', baseDate, term);
+                    const computed = rate40 != null && rate50 != null && short != null ? ((rate40 + rate50) / 2 - short) * 100 : null;
+                    return computed != null ? Number(computed.toFixed(1)) : PREMIUM_EXCEL_DEFAULTS.longSpread.fallback[row.fallbackKey]?.[i];
+                });
+                return '<tr><td><strong>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</strong></td>' + values.map(v => '<td>' + fmtBpValue(v) + '</td>').join('') + '</tr>';
+            }).join('');
+        }
+
+        function dataStoreRateForDate(store, date, term) {
+            if (!store || !store.dates || !store.rates) return null;
+            const idx = store.dates.indexOf(date);
+            if (idx < 0) return null;
+            const row = store.rates[idx];
+            return row ? sanitizeRate(row[term]) : null;
+        }
+
+        function buildBaseCurveFromSpotRow(date, ultimateRate) {
+            const terms = lifeDiscountData.terms || [];
+            const store = dataStores.gov_spot || (currentBondType === 'gov_spot' ? dataStore : null);
+            const r20 = dataStoreRateForDate(store, date, '20Y');
+            if (r20 == null) return null;
+            return terms.map(term => {
+                const year = parseInt(term, 10);
+                if (year <= 20) return dataStoreRateForDate(store, date, term);
+                if (year <= 40) {
+                    const rStar = dataStoreRateForDate(store, date, term);
+                    if (rStar == null) return null;
+                    const weight = (year - 20) / 20;
+                    const firstInterp = r20 + (ultimateRate - r20) * weight;
+                    return Number((firstInterp * weight + rStar * (1 - weight)).toFixed(8));
+                }
+                return ultimateRate;
+            });
+        }
+
+        function buildRuleBaseCurve(rule, date) {
+            const state = discountRuleState[rule];
+            if (rule === 'new') {
+                const sameDay = buildBaseCurveFromSpotRow(date, state.ultimateRate);
+                if (sameDay) return sameDay;
+            }
+            const idx = lifeDiscountData.dates.indexOf(date);
+            const row = lifeRowAt(lifeDiscountData.baseRows?.gov_spot, idx);
+            return row && row.length ? row.slice() : [];
+        }
+
+        function buildDiscountPremiumRow(frontPremiumBp, longPremiumBp) {
+            return (lifeDiscountData.terms || []).map(term => {
+                const year = parseInt(term, 10);
+                if (year <= 20) return frontPremiumBp / 100;
+                if (year < 40) {
+                    const weight = (year - 20) / 20;
+                    return Number(((frontPremiumBp + (longPremiumBp - frontPremiumBp) * weight) / 100).toFixed(8));
+                }
+                return longPremiumBp / 100;
+            });
+        }
+
+        function discountRowValue(row, item) {
+            if (!row) return null;
+            if (item.avg) {
+                let sum = 0;
+                let count = 0;
+                for (let y = item.avg[0]; y <= item.avg[1]; y++) {
+                    const idx = lifeTermIndex(y + 'Y');
+                    const v = idx >= 0 ? row[idx] : null;
+                    if (v != null && isFinite(v)) {
+                        sum += v;
+                        count++;
+                    }
+                }
+                return count ? sum / count : null;
+            }
+            const idx = lifeTermIndex(item.key);
+            return idx >= 0 ? row[idx] : null;
+        }
+
+        function buildDiscountGenerationRows(rule) {
+            if (!lifeDiscountData) return null;
+            const state = discountRuleState[rule];
+            const defaults = defaultPremiumDates();
+            state.evalDate = state.evalDate || defaults.evalDate;
+            state.compareDate = state.compareDate || getLifeComparisonDates(state.evalDate).prevTrade || state.evalDate;
+            const evalBase = buildRuleBaseCurve(rule, state.evalDate);
+            const compareBase = buildRuleBaseCurve(rule, state.compareDate);
+            const premium = buildDiscountPremiumRow(state.frontPremiumBp, state.longPremiumBp);
+            const evalSpot = buildLifeSpotRow(evalBase, premium);
+            const compareSpot = buildLifeSpotRow(compareBase, premium);
+            const evalForward = buildLifeForwardRow(evalSpot);
+            const compareForward = buildLifeForwardRow(compareSpot);
+            return {
+                dates: { evalDate: state.evalDate, compareDate: state.compareDate },
+                rows: {
+                    base: evalBase,
+                    premium,
+                    spot: evalSpot,
+                    forward: evalForward
+                },
+                compareRows: {
+                    base: compareBase,
+                    premium,
+                    spot: buildLifeSpotRow(compareBase, premium),
+                    forward: compareForward
+                }
+            };
+        }
+
+        function renderDiscountGenerationParams(rule) {
+            const el = document.getElementById(rule + 'DiscountParamsCard');
+            if (!el || !lifeDiscountData) return;
+            const state = discountRuleState[rule];
+            const defaults = defaultPremiumDates();
+            state.evalDate = state.evalDate || defaults.evalDate;
+            state.compareDate = state.compareDate || getLifeComparisonDates(state.evalDate).prevTrade || state.evalDate;
+            const dateOptions = (lifeDiscountData.dates || []).slice().reverse().map(d => '<option value="' + d + '"' + (d === state.evalDate ? ' selected' : '') + '>' + d + '</option>').join('');
+            const compareOptions = (lifeDiscountData.dates || []).slice().reverse().map(d => '<option value="' + d + '"' + (d === state.compareDate ? ' selected' : '') + '>' + d + '</option>').join('');
+            el.innerHTML = '<div class="card-title"><span>' + DISCOUNT_RULE_NAMES[rule] + ' · 参数</span></div>' +
+                '<div class="premium-input-grid">' +
+                '<label>评估时点<select id="' + rule + 'DiscountEvalDate">' + dateOptions + '</select></label>' +
+                '<label>对比时点<select id="' + rule + 'DiscountCompareDate">' + compareOptions + '</select></label>' +
+                '<label>前20年综合溢价(bp)<input id="' + rule + 'DiscountFrontPremium" type="number" value="' + state.frontPremiumBp + '" step="1"></label>' +
+                '<label>40年后综合溢价(bp)<input id="' + rule + 'DiscountLongPremium" type="number" value="' + state.longPremiumBp + '" step="1"></label>' +
+                '<label>终极利率(%)<input id="' + rule + 'DiscountUltimateRate" type="number" value="' + state.ultimateRate + '" step="0.1"></label>' +
+                '</div><div class="footnote">计算方法：综合溢价1-20年为输入值，20-40年线性插值至40年后输入值，40年及以后保持不变；即期折现率=基础曲线+综合溢价；远期折现率=逐年即期折现率推导。</div>';
+            ['EvalDate', 'CompareDate', 'FrontPremium', 'LongPremium', 'UltimateRate'].forEach(suffix => {
+                const ctl = document.getElementById(rule + 'Discount' + suffix);
+                if (ctl) ctl.onchange = function() { updateDiscountRuleState(rule); };
+            });
+        }
+
+        function updateDiscountRuleState(rule) {
+            const state = discountRuleState[rule];
+            state.evalDate = document.getElementById(rule + 'DiscountEvalDate')?.value || state.evalDate;
+            state.compareDate = document.getElementById(rule + 'DiscountCompareDate')?.value || state.compareDate;
+            state.frontPremiumBp = parseFloat(document.getElementById(rule + 'DiscountFrontPremium')?.value || state.frontPremiumBp);
+            state.longPremiumBp = parseFloat(document.getElementById(rule + 'DiscountLongPremium')?.value || state.longPremiumBp);
+            state.ultimateRate = parseFloat(document.getElementById(rule + 'DiscountUltimateRate')?.value || state.ultimateRate);
+            renderDiscountGeneration(rule);
+        }
+
+        function renderDiscountGeneration(rule) {
+            if (!lifeDiscountData) return;
+            const metricSelect = document.getElementById(rule + 'DiscountMetricSelect');
+            if (metricSelect) discountRuleState[rule].metric = metricSelect.value;
+            renderDiscountGenerationParams(rule);
+            const data = buildDiscountGenerationRows(rule);
+            if (!data) return;
+            const metric = discountRuleState[rule].metric;
+            const terms = lifeDiscountData.terms || [];
+            const x = terms.map(t => parseFloat(t));
+            const el = document.getElementById(rule + 'DiscountChart');
+            if (el && window.echarts) {
+                if (!discountCharts[rule]) discountCharts[rule] = echarts.init(el);
+                const row = data.rows[metric] || [];
+                const compareRow = data.compareRows[metric] || [];
+                discountCharts[rule].setOption(optimizeChartOption({
+                    tooltip: lightweightTooltip({ trigger: 'axis', formatter: function(params) {
+                        let s = params[0].axisValue + 'Y<br/>';
+                        for (const p of params) if (p.value && p.value[1] != null) s += p.marker + ' ' + p.seriesName + ': ' + p.value[1].toFixed(4) + '%<br/>';
+                        return s;
+                    }}),
+                    legend: { top: 6 },
+                    grid: { left: 55, right: 25, top: 45, bottom: 45 },
+                    xAxis: { type: 'value', min: 1, max: 50, name: '期限(年)' },
+                    yAxis: { type: 'value', name: '利率(%)', axisLabel: { formatter: v => v.toFixed(2) + '%' } },
+                    series: [
+                        { name: data.dates.evalDate + ' ' + DISCOUNT_METRIC_NAMES[metric], type: 'line', data: x.map((year, i) => [year, row[i]]), showSymbol: false, lineStyle: { width: 3, color: '#1f4a7a' } },
+                        { name: data.dates.compareDate + ' ' + DISCOUNT_METRIC_NAMES[metric], type: 'line', data: x.map((year, i) => [year, compareRow[i]]), showSymbol: false, lineStyle: { width: 2, color: '#7a8ea8', type: 'dashed' } }
+                    ]
+                }), true);
+            }
+            const thead = document.getElementById(rule + 'DiscountTableHeader');
+            const tbody = document.getElementById(rule + 'DiscountTableBody');
+            if (thead && tbody) {
+                thead.innerHTML = '<tr><th>项目</th>' + DISCOUNT_TABLE_ITEMS.map(item => '<th>' + item.label + '</th>').join('') + '</tr>';
+                const fmt = v => v != null && isFinite(v) ? v.toFixed(4) : '-';
+                const renderRow = (label, row) => '<tr><td><strong>' + label + '</strong></td>' + DISCOUNT_TABLE_ITEMS.map(item => '<td>' + fmt(discountRowValue(row, item)) + '</td>').join('') + '</tr>';
+                const renderDiff = (label, row, compareRow) => '<tr><td><strong>' + label + '</strong></td>' + DISCOUNT_TABLE_ITEMS.map(item => '<td>' + formatDiffCell(safeDiffBp(discountRowValue(row, item), discountRowValue(compareRow, item))) + '</td>').join('') + '</tr>';
+                tbody.innerHTML = renderRow(data.dates.evalDate + ' 基础曲线', data.rows.base) +
+                    renderRow(data.dates.evalDate + ' 综合溢价', data.rows.premium) +
+                    renderRow(data.dates.evalDate + ' 即期折现率', data.rows.spot) +
+                    renderRow(data.dates.evalDate + ' 远期折现率', data.rows.forward) +
+                    renderDiff('较 ' + data.dates.compareDate + ' 变动(bp)', data.rows[metric], data.compareRows[metric]);
+            }
+        }
+
+        function renderDiscountGenerationAll() {
+            renderDiscountGeneration('legacy');
+            renderDiscountGeneration('new');
+        }
+
+        function downloadDiscountGenerationExcel(rule) {
+            const data = buildDiscountGenerationRows(rule);
+            if (!data || !window.XLSX) return;
+            const rows = [['项目'].concat(DISCOUNT_TABLE_ITEMS.map(item => item.label))];
+            const addRow = (label, row) => rows.push([label].concat(DISCOUNT_TABLE_ITEMS.map(item => {
+                const v = discountRowValue(row, item);
+                return v != null && isFinite(v) ? Number(v.toFixed(6)) : '';
+            })));
+            addRow(data.dates.evalDate + ' 基础曲线', data.rows.base);
+            addRow(data.dates.evalDate + ' 综合溢价', data.rows.premium);
+            addRow(data.dates.evalDate + ' 即期折现率', data.rows.spot);
+            addRow(data.dates.evalDate + ' 远期折现率', data.rows.forward);
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, DISCOUNT_RULE_NAMES[rule]);
+            XLSX.writeFile(wb, DISCOUNT_RULE_NAMES[rule] + '_折现率生成_' + data.dates.evalDate + '.xlsx');
         }
 
         function downloadLifeDiscountExcel() {
@@ -4147,6 +4669,18 @@
                 renderCurveChart();
                 renderKeyTermsTable();
                 renderHistoryDiffTable();
+            });
+            const averageSplitInput = document.getElementById('baseAverageSplitInput');
+            if (averageSplitInput) {
+                averageSplitInput.addEventListener('change', function() {
+                    baseAverageSplitYear = parseInt(this.value, 10) || 3;
+                    renderKeyTermsTable();
+                    renderHistoryDiffTable();
+                });
+            }
+            ['premiumLiquidityCurve', 'premiumLiquidityPeriod', 'premiumLongRule'].forEach(id => {
+                const ctl = document.getElementById(id);
+                if (ctl) ctl.addEventListener('change', renderPremiumMonitor);
             });
             document.getElementById('lifeDateSelect').addEventListener('change', function() {
                 lifeSelectedDate = this.value;
