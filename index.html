@@ -45,6 +45,8 @@
         .table-wrap th { background: #f2f6fc; color: #1e385a; font-weight: 600; padding: 8px 10px; text-align: center; border-bottom: 2px solid #d0ddea; font-size: 12px; white-space: nowrap; }
         .table-wrap td { padding: 7px 10px; text-align: center; border-bottom: 1px solid #e9eef4; font-size: 13px; white-space: nowrap; }
         .table-wrap tr:hover td { background: #f6faff; }
+        .discount-block-label-row td { text-align: left; background: #fff; border-bottom: none; padding: 14px 0 6px; }
+        .discount-block-label { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px; border-radius: 999px; background: #edf5ff; color: #1f4a7a; border: 1px solid #cfe0f4; font-size: 12px; font-weight: 700; }
         .footnote { font-size: 12px; color: #6f85a5; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #dce4ed; }
         .bond-summary-card { margin-bottom: 20px; }
         .metrics-row { display: flex; flex-wrap: wrap; gap: 12px 30px; background: #f6faff; padding: 10px 16px; border-radius: 10px; margin-bottom: 0; border: 1px solid #e0e9f2; }
@@ -3471,7 +3473,7 @@
             const raw = await resp.json();
             const normalized = normalizeLifeDiscountData(raw);
             lifeDiscountData = normalized;
-            lifeSelectedDate = normalized.dates[normalized.dates.length - 1];
+            lifeSelectedDate = defaultLifeEvaluationDate();
             const defaultBenchmark = normalized.benchmarks.find(item => item.key === 'gov_spot') || normalized.benchmarks[0];
             const defaultSpreadBond = normalized.spreadBonds[0];
             lifeSelectedBenchmark = defaultBenchmark.key;
@@ -3962,15 +3964,28 @@
             return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
         }
 
+        function currentIsoDate() {
+            return new Date().toISOString().slice(0, 10);
+        }
+
+        function previousMonthEndOnOrBefore(referenceDate) {
+            const dt = new Date((referenceDate || currentIsoDate()) + 'T00:00:00Z');
+            return premiumMonthEnd(dt.getUTCFullYear(), dt.getUTCMonth());
+        }
+
+        function defaultLifeEvaluationDate(evalDateOverride) {
+            const dates = lifeDiscountData?.dates || [];
+            const latest = dates[dates.length - 1];
+            if (!latest) return null;
+            const targetDate = evalDateOverride || previousMonthEndOnOrBefore(currentIsoDate());
+            return lifeDateOnOrBefore(targetDate) || latest;
+        }
+
         function defaultPremiumDates(evalDateOverride) {
             const dates = lifeDiscountData?.dates || [];
             const latest = dates[dates.length - 1];
             if (!latest) return { evalDate: null, forecastDate: null, observationDates: [] };
-            const baseDate = evalDateOverride || latest;
-            const dt = new Date(baseDate + 'T00:00:00Z');
-            const year = dt.getUTCFullYear();
-            const prevMonthEnd = evalDateOverride ? evalDateOverride : premiumMonthEnd(year, dt.getUTCMonth() + 1);
-            const evalDate = lifeDateOnOrBefore(prevMonthEnd) || latest;
+            const evalDate = defaultLifeEvaluationDate(evalDateOverride);
             const evalYear = new Date(evalDate + 'T00:00:00Z').getUTCFullYear();
             return {
                 evalDate,
@@ -4301,9 +4316,10 @@
             thead.innerHTML = '';
             tbody.innerHTML = discountGenerationTableRows(data).map(row => {
                 if (row.header) {
-                    return '<tr><th>' + row.section + '</th><th>关键期限</th>' + DISCOUNT_GENERATION_COLUMNS.map(col => '<th>' + col.label + '</th>').join('') + '</tr>';
+                    return '<tr class="discount-block-label-row"><td colspan="' + (DISCOUNT_GENERATION_COLUMNS.length + 1) + '"><span class="discount-block-label">' + row.section + '</span></td></tr>' +
+                        '<tr><th>关键期限</th>' + DISCOUNT_GENERATION_COLUMNS.map(col => '<th>' + col.label + '</th>').join('') + '</tr>';
                 }
-                return '<tr><td></td><td><strong>' + row.label + '</strong></td>' + row.values.map(v => '<td>' + v + '</td>').join('') + '</tr>';
+                return '<tr><td><strong>' + row.label + '</strong></td>' + row.values.map(v => '<td>' + v + '</td>').join('') + '</tr>';
             }).join('');
         }
 
@@ -4364,8 +4380,12 @@
             if (!data || !window.XLSX) return;
             const exportRows = [];
             discountGenerationTableRows(data, true).forEach(row => {
-                if (row.header) exportRows.push([row.section, '关键期限'].concat(DISCOUNT_GENERATION_COLUMNS.map(col => col.label)));
-                else exportRows.push(['', row.label].concat(row.values));
+                if (row.header) {
+                    exportRows.push([row.section]);
+                    exportRows.push(['关键期限'].concat(DISCOUNT_GENERATION_COLUMNS.map(col => col.label)));
+                } else {
+                    exportRows.push([row.label].concat(row.values));
+                }
             });
             const exportWs = XLSX.utils.aoa_to_sheet(exportRows);
             const exportWb = XLSX.utils.book_new();
