@@ -22,6 +22,14 @@ class WorkflowPushTests(unittest.TestCase):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("preset_model_data.js", text)
 
+    def test_frontend_only_pushes_deploy_without_data_crawl(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("id: data_mode", text)
+        self.assertIn("run_data_update=true", text)
+        self.assertIn("run_data_update=false", text)
+        self.assertIn("steps.data_mode.outputs.run_data_update == 'true'", text)
+        self.assertIn("Fetch latest yield curve data", text)
+
 
 if __name__ == "__main__":
     unittest.main()

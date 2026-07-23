@@ -164,17 +164,17 @@ class LifeDiscountTests(unittest.TestCase):
             {"meta", "dates", "terms", "spreadTerms", "benchmarks", "spreadBonds", "baseRows", "benchmarkRows", "spreadBondRows", "monitorRows"},
         )
 
-    def test_only_premium_monitor_curves_use_extended_history_start(self):
+    def test_all_datasets_use_normal_history_start_by_default(self):
         starts = {dataset.key: ci_update.dataset_history_start(dataset) for dataset in ci_update.ALL_DATASETS}
 
-        self.assertEqual(starts["gov_spot"], ci_update.PREMIUM_HISTORY_START_DATE)
-        self.assertEqual(starts["cdb_spot"], ci_update.PREMIUM_HISTORY_START_DATE)
-        self.assertEqual(starts["rail_spot"], ci_update.PREMIUM_HISTORY_START_DATE)
-        self.assertEqual(starts["corp_aaa_spot"], ci_update.PREMIUM_HISTORY_START_DATE)
+        self.assertEqual(starts["gov_spot"], ci_update.START_DATE)
+        self.assertEqual(starts["cdb_spot"], ci_update.START_DATE)
+        self.assertEqual(starts["rail_spot"], ci_update.START_DATE)
+        self.assertEqual(starts["corp_aaa_spot"], ci_update.START_DATE)
         self.assertEqual(starts["gov_ytm"], ci_update.START_DATE)
         self.assertEqual(starts["corp_aa_spot"], ci_update.START_DATE)
 
-    def test_existing_monitor_dataset_rebuilds_when_history_is_too_short(self):
+    def test_existing_monitor_dataset_keeps_incremental_update_when_history_is_short(self):
         dataset = ci_update.DATASET_BY_KEY["gov_spot"]
         existing = {
             "dates": ["2020-01-02", "2026-07-15"],
@@ -185,7 +185,7 @@ class LifeDiscountTests(unittest.TestCase):
 
         fetch_start = ci_update.next_fetch_date_for_dataset(dataset, existing)
 
-        self.assertEqual(fetch_start, ci_update.PREMIUM_HISTORY_START_DATE)
+        self.assertEqual(fetch_start, "2026-07-16")
 
     def test_strict_moving_average_requires_full_period_for_every_term(self):
         terms = ["1Y", "2Y"]
@@ -286,7 +286,7 @@ class UpdateTests(unittest.TestCase):
 
         self.assertEqual(fetch_start, ci_update.START_DATE)
 
-    def test_premium_monitor_legacy_dataset_without_metadata_rebuilds_history(self):
+    def test_premium_monitor_legacy_dataset_without_metadata_keeps_incremental_update(self):
         dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "gov_spot")
         legacy_data = {
             "dates": ["2026-07-15"],
@@ -296,7 +296,7 @@ class UpdateTests(unittest.TestCase):
 
         fetch_start = ci_update.next_fetch_date_for_dataset(dataset, legacy_data)
 
-        self.assertEqual(fetch_start, ci_update.PREMIUM_HISTORY_START_DATE)
+        self.assertEqual(fetch_start, "2026-07-16")
 
     def test_update_all_fetches_local_government_separately_from_bundles(self):
         datasets = [

@@ -216,6 +216,17 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("function buildRuleBaseCurve", text)
         self.assertIn("function downloadDiscountGenerationExcel", text)
 
+    def test_discount_generation_table_matches_excel_three_block_layout(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn("function renderDiscountGenerationTable", text)
+        self.assertIn("评估时点曲线", text)
+        self.assertIn("对比时点曲线", text)
+        self.assertIn("差异（评估-对比）单位bps", text)
+        self.assertIn("基础曲线", text)
+        self.assertIn("综合溢价", text)
+        self.assertIn("即期折现率", text)
+        self.assertIn("远期折现率", text)
+
     def test_ma_cards_are_available_under_premium_with_dual_curve_tables(self):
         text = INDEX.read_text(encoding="utf-8")
         premium_index = text.index('id="viewPremium"')
