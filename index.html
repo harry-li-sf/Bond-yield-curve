@@ -4237,6 +4237,44 @@
             renderDiscountGeneration(rule);
         }
 
+        function discountGenerationTableRows(data, forExport = false) {
+            const curveRows = [
+                { label: '基础曲线', key: 'base' },
+                { label: '综合溢价', key: 'premium' },
+                { label: '即期折现率', key: 'spot' },
+                { label: '远期折现率', key: 'forward' }
+            ];
+            const rows = [];
+            const valueCell = (row, item) => {
+                const v = discountRowValue(row, item);
+                return forExport ? (v != null && isFinite(v) ? Number(v.toFixed(6)) : '') : (v != null && isFinite(v) ? v.toFixed(4) : '-');
+            };
+            const diffCell = (row, compareRow, item) => {
+                const diff = safeDiffBp(discountRowValue(row, item), discountRowValue(compareRow, item));
+                return forExport ? (diff != null && isFinite(diff) ? Number(diff.toFixed(2)) : '') : formatDiffCell(diff);
+            };
+            rows.push({ section: '评估时点曲线', values: [] });
+            curveRows.forEach(item => rows.push({ section: '', label: item.label, values: DISCOUNT_TABLE_ITEMS.map(term => valueCell(data.rows[item.key], term)) }));
+            rows.push({ section: '对比时点曲线', values: [] });
+            curveRows.forEach(item => rows.push({ section: '', label: item.label, values: DISCOUNT_TABLE_ITEMS.map(term => valueCell(data.compareRows[item.key], term)) }));
+            rows.push({ section: '差异（评估-对比）单位bps', values: [] });
+            curveRows.forEach(item => rows.push({ section: '', label: item.label, values: DISCOUNT_TABLE_ITEMS.map(term => diffCell(data.rows[item.key], data.compareRows[item.key], term)) }));
+            return rows;
+        }
+
+        function renderDiscountGenerationTable(rule, data) {
+            const thead = document.getElementById(rule + 'DiscountTableHeader');
+            const tbody = document.getElementById(rule + 'DiscountTableBody');
+            if (!thead || !tbody) return;
+            thead.innerHTML = '<tr><th>分块</th><th>曲线</th>' + DISCOUNT_TABLE_ITEMS.map(item => '<th>' + item.label + '</th>').join('') + '</tr>';
+            tbody.innerHTML = discountGenerationTableRows(data).map(row => {
+                if (row.section && row.values.length === 0) {
+                    return '<tr><td colspan="' + (DISCOUNT_TABLE_ITEMS.length + 2) + '"><strong>' + row.section + '</strong></td></tr>';
+                }
+                return '<tr><td></td><td><strong>' + row.label + '</strong></td>' + row.values.map(v => '<td>' + v + '</td>').join('') + '</tr>';
+            }).join('');
+        }
+
         function renderDiscountGeneration(rule) {
             if (!lifeDiscountData) return;
             const metricSelect = document.getElementById(rule + 'DiscountMetricSelect');
@@ -4268,9 +4306,10 @@
                     ]
                 }), true);
             }
+            renderDiscountGenerationTable(rule, data);
             const thead = document.getElementById(rule + 'DiscountTableHeader');
             const tbody = document.getElementById(rule + 'DiscountTableBody');
-            if (thead && tbody) {
+            if (false && thead && tbody) {
                 thead.innerHTML = '<tr><th>项目</th>' + DISCOUNT_TABLE_ITEMS.map(item => '<th>' + item.label + '</th>').join('') + '</tr>';
                 const fmt = v => v != null && isFinite(v) ? v.toFixed(4) : '-';
                 const renderRow = (label, row) => '<tr><td><strong>' + label + '</strong></td>' + DISCOUNT_TABLE_ITEMS.map(item => '<td>' + fmt(discountRowValue(row, item)) + '</td>').join('') + '</tr>';
@@ -4291,6 +4330,16 @@
         function downloadDiscountGenerationExcel(rule) {
             const data = buildDiscountGenerationRows(rule);
             if (!data || !window.XLSX) return;
+            const exportRows = [['分块', '曲线'].concat(DISCOUNT_TABLE_ITEMS.map(item => item.label))];
+            discountGenerationTableRows(data, true).forEach(row => {
+                if (row.section && row.values.length === 0) exportRows.push([row.section].concat(Array(DISCOUNT_TABLE_ITEMS.length + 1).fill('')));
+                else exportRows.push(['', row.label].concat(row.values));
+            });
+            const exportWs = XLSX.utils.aoa_to_sheet(exportRows);
+            const exportWb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(exportWb, exportWs, DISCOUNT_RULE_NAMES[rule]);
+            XLSX.writeFile(exportWb, DISCOUNT_RULE_NAMES[rule] + '_折现率生成_' + data.dates.evalDate + '.xlsx');
+            return;
             const rows = [['项目'].concat(DISCOUNT_TABLE_ITEMS.map(item => item.label))];
             const addRow = (label, row) => rows.push([label].concat(DISCOUNT_TABLE_ITEMS.map(item => {
                 const v = discountRowValue(row, item);

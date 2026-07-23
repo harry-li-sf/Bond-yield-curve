@@ -191,16 +191,11 @@ def has_current_metadata(dataset: DatasetConfig, existing: dict) -> bool:
 
 
 def dataset_history_start(dataset: DatasetConfig) -> str:
-    if dataset.key in LIFE_MONITOR_DATASET_KEYS:
-        return PREMIUM_HISTORY_START_DATE
     return START_DATE
 
 
 def needs_extended_history_rebuild(dataset: DatasetConfig, existing: dict) -> bool:
-    if dataset.key not in LIFE_MONITOR_DATASET_KEYS:
-        return False
-    dates = existing.get("dates") or []
-    return not dates or dates[0] > PREMIUM_HISTORY_START_DATE
+    return False
 
 
 def next_fetch_date_for_dataset(dataset: DatasetConfig, existing: dict) -> str:
