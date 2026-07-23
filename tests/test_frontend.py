@@ -183,6 +183,23 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("function defaultPremiumDates", text)
         self.assertIn("function projectLatestPremiumRow", text)
 
+    def test_premium_monitor_observation_dates_are_selectable_and_liquidity_shows_all_curves(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('id="premiumLiquidityObservationDate1"', text)
+        self.assertIn('id="premiumCounterObservationDate1"', text)
+        self.assertIn('id="premiumLongObservationDate1"', text)
+        self.assertNotIn('id="premiumLiquidityCurve"', text)
+        self.assertIn("PREMIUM_LIQUIDITY_CURVES", text)
+        self.assertIn("for (const curve of PREMIUM_LIQUIDITY_CURVES)", text)
+        self.assertIn("铁道债-国债（旧准则）", text)
+        self.assertIn("AAA企业债-国债（旧准则）", text)
+        self.assertIn("国开债-国债（新准则）", text)
+
+    def test_discount_generation_default_compare_date_is_prior_year_end(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn("function defaultDiscountCompareDate", text)
+        self.assertIn("lastYearTrade || evalDate", text)
+
     def test_discount_generation_uses_separate_legacy_and_new_cards(self):
         text = INDEX.read_text(encoding="utf-8")
         self.assertIn('id="legacyDiscountParamsCard"', text)
