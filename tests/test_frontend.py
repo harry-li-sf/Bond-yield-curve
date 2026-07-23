@@ -185,6 +185,14 @@ class FrontendTests(unittest.TestCase):
 
     def test_premium_monitor_observation_dates_are_selectable_and_liquidity_shows_all_curves(self):
         text = INDEX.read_text(encoding="utf-8")
+        self.assertIn("其他观察时点1", text)
+        self.assertIn("其他观察时点2", text)
+        self.assertIn("其他观察时点3", text)
+        self.assertIn("'2023-12-31'", text)
+        self.assertIn("'2024-12-31'", text)
+        self.assertIn("'2025-12-31'", text)
+        self.assertIn("roleLabel: '其他观察时点'", text)
+        self.assertIn("<th rowspan=\"2\">类型</th><th rowspan=\"2\">日期</th>", text)
         self.assertIn('id="premiumLiquidityObservationDate1"', text)
         self.assertIn('id="premiumCounterObservationDate1"', text)
         self.assertIn('id="premiumLongObservationDate1"', text)
@@ -219,6 +227,9 @@ class FrontendTests(unittest.TestCase):
     def test_discount_generation_table_matches_excel_three_block_layout(self):
         text = INDEX.read_text(encoding="utf-8")
         self.assertIn("function renderDiscountGenerationTable", text)
+        self.assertIn("const DISCOUNT_GENERATION_COLUMNS", text)
+        self.assertIn("row.header", text)
+        self.assertIn("<th>关键期限</th>", text)
         self.assertIn("评估时点曲线", text)
         self.assertIn("对比时点曲线", text)
         self.assertIn("差异（评估-对比）单位bps", text)
@@ -226,6 +237,7 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("综合溢价", text)
         self.assertIn("即期折现率", text)
         self.assertIn("远期折现率", text)
+        self.assertNotIn("<th>分块</th><th>曲线</th>", text)
 
     def test_ma_cards_are_available_under_premium_with_dual_curve_tables(self):
         text = INDEX.read_text(encoding="utf-8")
