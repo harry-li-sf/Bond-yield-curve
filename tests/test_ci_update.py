@@ -164,20 +164,33 @@ class LifeDiscountTests(unittest.TestCase):
             {"meta", "dates", "terms", "spreadTerms", "benchmarks", "spreadBonds", "baseRows", "benchmarkRows", "spreadBondRows", "monitorRows"},
         )
 
-    def test_all_datasets_use_normal_history_start_by_default(self):
+    def test_premium_monitor_datasets_use_extended_history_start(self):
         starts = {dataset.key: ci_update.dataset_history_start(dataset) for dataset in ci_update.ALL_DATASETS}
 
-        self.assertEqual(starts["gov_spot"], ci_update.START_DATE)
-        self.assertEqual(starts["cdb_spot"], ci_update.START_DATE)
-        self.assertEqual(starts["rail_spot"], ci_update.START_DATE)
-        self.assertEqual(starts["corp_aaa_spot"], ci_update.START_DATE)
+        self.assertEqual(starts["gov_spot"], ci_update.PREMIUM_HISTORY_START_DATE)
+        self.assertEqual(starts["cdb_spot"], ci_update.PREMIUM_HISTORY_START_DATE)
+        self.assertEqual(starts["rail_spot"], ci_update.PREMIUM_HISTORY_START_DATE)
+        self.assertEqual(starts["corp_aaa_spot"], ci_update.PREMIUM_HISTORY_START_DATE)
         self.assertEqual(starts["gov_ytm"], ci_update.START_DATE)
         self.assertEqual(starts["corp_aa_spot"], ci_update.START_DATE)
 
-    def test_existing_monitor_dataset_keeps_incremental_update_when_history_is_short(self):
+    def test_existing_monitor_dataset_backfills_when_history_is_short(self):
         dataset = ci_update.DATASET_BY_KEY["gov_spot"]
         existing = {
             "dates": ["2020-01-02", "2026-07-15"],
+            "terms": dataset.terms,
+            "rows": [[2.0 for _ in dataset.terms], [2.1 for _ in dataset.terms]],
+            "meta": dataset.meta,
+        }
+
+        fetch_start = ci_update.next_fetch_date_for_dataset(dataset, existing)
+
+        self.assertEqual(fetch_start, ci_update.PREMIUM_HISTORY_START_DATE)
+
+    def test_existing_monitor_dataset_keeps_incremental_update_after_history_backfill(self):
+        dataset = ci_update.DATASET_BY_KEY["gov_spot"]
+        existing = {
+            "dates": [ci_update.PREMIUM_HISTORY_START_DATE, "2026-07-15"],
             "terms": dataset.terms,
             "rows": [[2.0 for _ in dataset.terms], [2.1 for _ in dataset.terms]],
             "meta": dataset.meta,
@@ -206,6 +219,22 @@ class LifeDiscountTests(unittest.TestCase):
         self.assertEqual(rows[0][0], "2026-01-05")
         self.assertAlmostEqual(rows[0][1]["1Y"], 3.0, places=8)
         self.assertAlmostEqual(rows[0][1]["2Y"], 13.0, places=8)
+
+    def test_append_dataset_day_merges_backfilled_dates_in_order(self):
+        dataset = ci_update.DATASET_BY_KEY["gov_spot"]
+        states = {
+            dataset.key: {
+                "dates": ["2020-01-02"],
+                "terms": dataset.terms,
+                "rows": [[2.0 for _ in dataset.terms]],
+            }
+        }
+
+        ci_update.append_dataset_day(states, dataset, "2014-01-02", {"1Y": 1.0})
+        ci_update.sort_dataset_state(states[dataset.key])
+
+        self.assertEqual(states[dataset.key]["dates"], ["2014-01-02", "2020-01-02"])
+        self.assertEqual(states[dataset.key]["rows"][0][0], 1.0)
 
     def test_life_discount_data_includes_monitor_ma_rows_for_required_periods(self):
         terms = [f"{year}Y" for year in range(1, 51)]
@@ -286,7 +315,7 @@ class UpdateTests(unittest.TestCase):
 
         self.assertEqual(fetch_start, ci_update.START_DATE)
 
-    def test_premium_monitor_legacy_dataset_without_metadata_keeps_incremental_update(self):
+    def test_premium_monitor_legacy_dataset_without_metadata_backfills_history(self):
         dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "gov_spot")
         legacy_data = {
             "dates": ["2026-07-15"],
@@ -296,7 +325,7 @@ class UpdateTests(unittest.TestCase):
 
         fetch_start = ci_update.next_fetch_date_for_dataset(dataset, legacy_data)
 
-        self.assertEqual(fetch_start, "2026-07-16")
+        self.assertEqual(fetch_start, ci_update.PREMIUM_HISTORY_START_DATE)
 
     def test_update_all_fetches_local_government_separately_from_bundles(self):
         datasets = [
