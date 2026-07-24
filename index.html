@@ -149,9 +149,9 @@
         .premium-card-grid > * { min-width: 0; }
         .premium-full-card { margin-bottom: 20px; }
         .premium-rule-badge { font-size: 11px; background: #f0f6ff; color: #1f4a7a; border: 1px solid #d8e7f7; border-radius: 999px; padding: 2px 8px; }
-        .premium-input-grid { display: grid; grid-template-columns: repeat(2, minmax(130px, 1fr)); gap: 10px 14px; margin-bottom: 12px; }
-        .premium-input-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #385574; font-weight: 600; }
-        .premium-input-grid input, .premium-input-grid select { padding: 6px 8px; border: 1px solid #c7d5e5; border-radius: 7px; background: #fff; color: #1a2b44; }
+        .premium-input-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px 10px; margin-bottom: 12px; }
+        .premium-input-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: #385574; font-weight: 600; }
+        .premium-input-grid input, .premium-input-grid select { padding: 5px 7px; border: 1px solid #c7d5e5; border-radius: 7px; background: #fff; color: #1a2b44; font-size: 12px; }
         .ma-curve-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
         .ma-curve-item { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #3e5a7a; cursor: pointer; }
         .ma-curve-item input[type="checkbox"] { accent-color: #1f4a7a; width: 14px; height: 14px; }
@@ -452,7 +452,9 @@
                             <label>其他观察时点3<select id="premiumLiquidityObservationDate3"></select></label>
                             <label>评估时点<select id="premiumLiquidityEvalDate"></select></label>
                             <label>预测时点<select id="premiumLiquidityForecastDate"></select></label>
-                            <label>移动平均<select id="premiumLiquidityPeriod"><option value="2500">2500日移动平均</option><option value="750">750日移动平均</option><option value="250">250日移动平均</option></select></label>
+                            <label>铁道债MA<select id="premiumLiquidityRailPeriod"><option value="2500" selected>2500日</option><option value="750">750日</option><option value="250">250日</option></select></label>
+                            <label>AAA企业债MA<select id="premiumLiquidityCorpPeriod"><option value="2500" selected>2500日</option><option value="750">750日</option><option value="250">250日</option></select></label>
+                            <label>国开债MA<select id="premiumLiquidityCdbPeriod"><option value="2500">2500日</option><option value="750" selected>750日</option><option value="250">250日</option></select></label>
                         </div>
                         <div class="table-wrap"><table><thead id="premiumLiquidityHeader"></thead><tbody id="premiumLiquidityBody"></tbody></table></div>
                         <div class="footnote">计算方法：税收、流动性溢价 = 标的债券移动平均收益率 - 国债同期限移动平均收益率；单位 bp。预测时点基于评估时点结果平推。</div>
@@ -465,6 +467,8 @@
                             <label>其他观察时点3<select id="premiumCounterObservationDate3"></select></label>
                             <label>评估时点<select id="premiumCounterEvalDate"></select></label>
                             <label>预测时点<select id="premiumCounterForecastDate"></select></label>
+                            <label>观察期限起点<select id="premiumCounterStartTerm"></select></label>
+                            <label>观察期限终点<select id="premiumCounterEndTerm"></select></label>
                         </div>
                         <div class="table-wrap"><table><thead id="premiumCounterCycleHeader"></thead><tbody id="premiumCounterCycleBody"></tbody></table></div>
                         <div class="footnote">计算方法：逆周期溢价 = (国债2500日移动平均 - 国债250日移动平均) × 25%；单位 bp。预测时点基于评估时点结果平推。</div>
@@ -980,8 +984,8 @@
         let lifeLongPremiumMode = '50y';
         let discountCharts = {};
         const discountRuleState = {
-            legacy: { evalDate: null, compareDate: null, frontPremiumBp: 20, longPremiumBp: 20, ultimateRate: 4.5, metric: 'base' },
-            new: { evalDate: null, compareDate: null, frontPremiumBp: 20, longPremiumBp: 20, ultimateRate: 4.5, metric: 'base' }
+            legacy: { evalDate: null, compareDate: null, evalFrontPremiumBp: 20, evalLongPremiumBp: 20, compareFrontPremiumBp: 20, compareLongPremiumBp: 20, ultimateRate: 4.5, metric: 'base' },
+            new: { evalDate: null, compareDate: null, evalFrontPremiumBp: 20, evalLongPremiumBp: 20, compareFrontPremiumBp: 20, compareLongPremiumBp: 20, ultimateRate: 4.5, metric: 'base' }
         };
         let presetModelData = null;
         let presetModelChart = null;
@@ -3915,6 +3919,16 @@
             { key: 'corp_aaa_spot', label: 'AAA企业债-国债（旧准则）' },
             { key: 'cdb_spot', label: '国开债-国债（新准则）' }
         ];
+        const PREMIUM_LIQUIDITY_PERIOD_CONTROL_IDS = {
+            rail_spot: 'premiumLiquidityRailPeriod',
+            corp_aaa_spot: 'premiumLiquidityCorpPeriod',
+            cdb_spot: 'premiumLiquidityCdbPeriod'
+        };
+        const PREMIUM_LIQUIDITY_PERIOD_DEFAULTS = {
+            rail_spot: 2500,
+            corp_aaa_spot: 2500,
+            cdb_spot: 750
+        };
         const DISCOUNT_RULE_NAMES = { legacy: '旧准则', new: '新准则' };
         const DISCOUNT_METRIC_NAMES = { base: '基础曲线', premium: '综合溢价', spot: '即期折现率', forward: '远期折现率' };
         const DISCOUNT_GENERATION_COLUMNS = [
@@ -3990,7 +4004,7 @@
             return {
                 evalDate,
                 forecastDate: evalYear + '-12-31',
-                observationDates: ['2023-12-31', '2024-12-31', '2025-12-31']
+                observationDates: [evalYear - 3, evalYear - 2, evalYear - 1].map(y => y + '-12-31')
             };
         }
 
@@ -4050,7 +4064,7 @@
         }
 
         function monitorRate(period, key, date, term) {
-            const sourceDate = date && (lifeDiscountData.dates || []).includes(date) ? date : null;
+            const sourceDate = date && (lifeDiscountData.dates || []).includes(date) ? date : lifeDateOnOrBefore(date);
             const idx = sourceDate ? lifeDiscountData.dates.indexOf(sourceDate) : -1;
             const termIdx = lifeTermIndex(term);
             const rows = monitorRowsFor(period, key);
@@ -4094,28 +4108,78 @@
             return v != null && isFinite(v) ? v.toFixed(1) : '-';
         }
 
+        function premiumLiquidityPeriodForCurve(key) {
+            const id = PREMIUM_LIQUIDITY_PERIOD_CONTROL_IDS[key];
+            const fallback = PREMIUM_LIQUIDITY_PERIOD_DEFAULTS[key] || 2500;
+            return parseInt(document.getElementById(id)?.value || fallback, 10);
+        }
+
+        function populatePremiumCounterTermSelect(id, selectedTerm) {
+            const select = document.getElementById(id);
+            if (!select) return;
+            if (select.options.length === 0) {
+                const terms = lifeDiscountData?.terms || Array.from({ length: 50 }, (_, i) => (i + 1) + 'Y');
+                for (const term of terms) {
+                    const opt = document.createElement('option');
+                    opt.value = term;
+                    opt.textContent = term;
+                    select.appendChild(opt);
+                }
+                select.addEventListener('change', renderPremiumMonitor);
+            }
+            select.value = selectedTerm;
+        }
+
+        function populatePremiumCounterTermControls() {
+            const startSelect = document.getElementById('premiumCounterStartTerm');
+            const endSelect = document.getElementById('premiumCounterEndTerm');
+            populatePremiumCounterTermSelect('premiumCounterStartTerm', startSelect?.value || '19Y');
+            populatePremiumCounterTermSelect('premiumCounterEndTerm', endSelect?.value || '23Y');
+        }
+
+        function premiumCounterTerms() {
+            const terms = lifeDiscountData?.terms || PREMIUM_EXCEL_DEFAULTS.counterCycle.terms;
+            const startTerm = document.getElementById('premiumCounterStartTerm')?.value || '19Y';
+            const endTerm = document.getElementById('premiumCounterEndTerm')?.value || '23Y';
+            let startIdx = terms.indexOf(startTerm);
+            let endIdx = terms.indexOf(endTerm);
+            if (startIdx < 0) startIdx = terms.indexOf('19Y');
+            if (endIdx < 0) endIdx = terms.indexOf('23Y');
+            if (startIdx < 0 || endIdx < 0) return PREMIUM_EXCEL_DEFAULTS.counterCycle.terms;
+            if (startIdx > endIdx) [startIdx, endIdx] = [endIdx, startIdx];
+            return terms.slice(startIdx, endIdx + 1);
+        }
+
+        function counterCycleBp(row, term, evalDate) {
+            const baseDate = row.type === 'forecast' ? evalDate : row.date;
+            const longMa = monitorRate(2500, 'gov_spot', baseDate, term);
+            const shortMa = monitorRate(250, 'gov_spot', baseDate, term);
+            return longMa != null && shortMa != null ? Number(((longMa - shortMa) * 25).toFixed(1)) : null;
+        }
+
         function renderPremiumMonitor() {
             if (!lifeDiscountData) return;
             const defaults = defaultPremiumDates();
             populatePremiumDateControls('premiumLiquidity', defaults);
             populatePremiumDateControls('premiumCounter', defaults);
             populatePremiumDateControls('premiumLong', defaults);
+            populatePremiumCounterTermControls();
 
             const liquidityDates = selectedPremiumDates('premiumLiquidity', defaults);
             const counterDates = selectedPremiumDates('premiumCounter', defaults);
             const longDates = selectedPremiumDates('premiumLong', defaults);
-            const liquidityPeriod = parseInt(document.getElementById('premiumLiquidityPeriod')?.value || '2500', 10);
             const liquidityTerms = ['10Y', '15Y', '20Y', '25Y'];
             const liquidityRows = premiumMonitorRows(liquidityDates);
-            const liquidityHeadGroups = PREMIUM_LIQUIDITY_CURVES.map(curve => '<th colspan="' + liquidityTerms.length + '">' + curve.label + '</th>').join('');
+            const liquidityHeadGroups = PREMIUM_LIQUIDITY_CURVES.map(curve => '<th colspan="' + liquidityTerms.length + '">' + curve.label + ' · ' + premiumLiquidityPeriodForCurve(curve.key) + '日MA</th>').join('');
             const liquidityHeadTerms = PREMIUM_LIQUIDITY_CURVES.map(() => liquidityTerms.map(t => '<th>' + t + '</th>').join('')).join('');
             document.getElementById('premiumLiquidityHeader').innerHTML = '<tr><th rowspan="2">类型</th><th rowspan="2">日期</th>' + liquidityHeadGroups + '</tr><tr>' + liquidityHeadTerms + '</tr>';
             document.getElementById('premiumLiquidityBody').innerHTML = liquidityRows.map(row => {
                 let cells = '';
                 for (const curve of PREMIUM_LIQUIDITY_CURVES) {
+                    const period = premiumLiquidityPeriodForCurve(curve.key);
                     const liquidityDefault = PREMIUM_EXCEL_DEFAULTS.liquidity[curve.key] || PREMIUM_EXCEL_DEFAULTS.liquidity.rail_spot;
                     cells += liquidityTerms.map((term, i) => {
-                        const computed = monitorSpreadBp(liquidityPeriod, curve.key, row.date, term);
+                        const computed = monitorSpreadBp(period, curve.key, row.date, term);
                         const fallback = liquidityDefault.fallback[row.fallbackKey]?.[i];
                         return '<td>' + fmtBpValue(computed != null ? computed : fallback) + '</td>';
                     }).join('');
@@ -4123,11 +4187,16 @@
                 return '<tr><td><strong>' + row.roleLabel + '</strong></td><td>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</td>' + cells + '</tr>';
             }).join('');
 
-            const counterTerms = PREMIUM_EXCEL_DEFAULTS.counterCycle.terms;
+            const counterTerms = premiumCounterTerms();
             document.getElementById('premiumCounterCycleHeader').innerHTML = '<tr><th>类型</th><th>日期</th>' + counterTerms.map(t => '<th>' + t + '</th>').join('') + '</tr>';
             document.getElementById('premiumCounterCycleBody').innerHTML = premiumMonitorRows(counterDates).map(row => {
                 const fallback = PREMIUM_EXCEL_DEFAULTS.counterCycle.fallback[row.fallbackKey] || PREMIUM_EXCEL_DEFAULTS.counterCycle.fallback.eval;
-                const cells = counterTerms.map((term, i) => '<td>' + fmtBpValue(fallback[i]) + '</td>').join('');
+                const cells = counterTerms.map(term => {
+                    const computed = counterCycleBp(row, term, counterDates.evalDate);
+                    const fallbackIdx = PREMIUM_EXCEL_DEFAULTS.counterCycle.terms.indexOf(term);
+                    const fallbackValue = fallbackIdx >= 0 ? fallback[fallbackIdx] : null;
+                    return '<td>' + fmtBpValue(computed != null ? computed : fallbackValue) + '</td>';
+                }).join('');
                 return '<tr><td><strong>' + row.roleLabel + '</strong></td><td>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</td>' + cells + '</tr>';
             }).join('');
 
@@ -4223,23 +4292,24 @@
             state.compareDate = state.compareDate || defaultDiscountCompareDate(state.evalDate);
             const evalBase = buildRuleBaseCurve(rule, state.evalDate);
             const compareBase = buildRuleBaseCurve(rule, state.compareDate);
-            const premium = buildDiscountPremiumRow(state.frontPremiumBp, state.longPremiumBp);
-            const evalSpot = buildLifeSpotRow(evalBase, premium);
-            const compareSpot = buildLifeSpotRow(compareBase, premium);
+            const evalPremium = buildDiscountPremiumRow(state.evalFrontPremiumBp, state.evalLongPremiumBp);
+            const comparePremium = buildDiscountPremiumRow(state.compareFrontPremiumBp, state.compareLongPremiumBp);
+            const evalSpot = buildLifeSpotRow(evalBase, evalPremium);
+            const compareSpot = buildLifeSpotRow(compareBase, comparePremium);
             const evalForward = buildLifeForwardRow(evalSpot);
             const compareForward = buildLifeForwardRow(compareSpot);
             return {
                 dates: { evalDate: state.evalDate, compareDate: state.compareDate },
                 rows: {
                     base: evalBase,
-                    premium,
+                    premium: evalPremium,
                     spot: evalSpot,
                     forward: evalForward
                 },
                 compareRows: {
                     base: compareBase,
-                    premium,
-                    spot: buildLifeSpotRow(compareBase, premium),
+                    premium: comparePremium,
+                    spot: compareSpot,
                     forward: compareForward
                 }
             };
@@ -4263,11 +4333,13 @@
                 '<div class="premium-input-grid">' +
                 '<label>评估时点<select id="' + rule + 'DiscountEvalDate">' + dateOptions + '</select></label>' +
                 '<label>对比时点<select id="' + rule + 'DiscountCompareDate">' + compareOptions + '</select></label>' +
-                '<label>前20年综合溢价(bp)<input id="' + rule + 'DiscountFrontPremium" type="number" value="' + state.frontPremiumBp + '" step="1"></label>' +
-                '<label>40年后综合溢价(bp)<input id="' + rule + 'DiscountLongPremium" type="number" value="' + state.longPremiumBp + '" step="1"></label>' +
+                '<label>评估前20年溢价(bp)<input id="' + rule + 'DiscountEvalFrontPremium" type="number" value="' + state.evalFrontPremiumBp + '" step="1"></label>' +
+                '<label>评估40年后溢价(bp)<input id="' + rule + 'DiscountEvalLongPremium" type="number" value="' + state.evalLongPremiumBp + '" step="1"></label>' +
+                '<label>对比前20年溢价(bp)<input id="' + rule + 'DiscountCompareFrontPremium" type="number" value="' + state.compareFrontPremiumBp + '" step="1"></label>' +
+                '<label>对比40年后溢价(bp)<input id="' + rule + 'DiscountCompareLongPremium" type="number" value="' + state.compareLongPremiumBp + '" step="1"></label>' +
                 '<label>终极利率(%)<input id="' + rule + 'DiscountUltimateRate" type="number" value="' + state.ultimateRate + '" step="0.1"></label>' +
                 '</div><div class="footnote">计算方法：综合溢价1-20年为输入值，20-40年线性插值至40年后输入值，40年及以后保持不变；即期折现率=基础曲线+综合溢价；远期折现率=逐年即期折现率推导。</div>';
-            ['EvalDate', 'CompareDate', 'FrontPremium', 'LongPremium', 'UltimateRate'].forEach(suffix => {
+            ['EvalDate', 'CompareDate', 'EvalFrontPremium', 'EvalLongPremium', 'CompareFrontPremium', 'CompareLongPremium', 'UltimateRate'].forEach(suffix => {
                 const ctl = document.getElementById(rule + 'Discount' + suffix);
                 if (ctl) ctl.onchange = function() { updateDiscountRuleState(rule); };
             });
@@ -4277,8 +4349,10 @@
             const state = discountRuleState[rule];
             state.evalDate = document.getElementById(rule + 'DiscountEvalDate')?.value || state.evalDate;
             state.compareDate = document.getElementById(rule + 'DiscountCompareDate')?.value || state.compareDate;
-            state.frontPremiumBp = parseFloat(document.getElementById(rule + 'DiscountFrontPremium')?.value || state.frontPremiumBp);
-            state.longPremiumBp = parseFloat(document.getElementById(rule + 'DiscountLongPremium')?.value || state.longPremiumBp);
+            state.evalFrontPremiumBp = parseFloat(document.getElementById(rule + 'DiscountEvalFrontPremium')?.value || state.evalFrontPremiumBp);
+            state.evalLongPremiumBp = parseFloat(document.getElementById(rule + 'DiscountEvalLongPremium')?.value || state.evalLongPremiumBp);
+            state.compareFrontPremiumBp = parseFloat(document.getElementById(rule + 'DiscountCompareFrontPremium')?.value || state.compareFrontPremiumBp);
+            state.compareLongPremiumBp = parseFloat(document.getElementById(rule + 'DiscountCompareLongPremium')?.value || state.compareLongPremiumBp);
             state.ultimateRate = parseFloat(document.getElementById(rule + 'DiscountUltimateRate')?.value || state.ultimateRate);
             renderDiscountGeneration(rule);
         }
@@ -4819,7 +4893,7 @@
                     renderHistoryDiffTable();
                 });
             }
-            ['premiumLiquidityPeriod'].forEach(id => {
+            Object.values(PREMIUM_LIQUIDITY_PERIOD_CONTROL_IDS).forEach(id => {
                 const ctl = document.getElementById(id);
                 if (ctl) ctl.addEventListener('change', renderPremiumMonitor);
             });
