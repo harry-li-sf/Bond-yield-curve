@@ -4059,7 +4059,7 @@
             const periodRows = lifeDiscountData.monitorRows?.[String(period)] || {};
             if (periodRows[key]) return periodRows[key];
             if (period === 750 && key === 'gov_spot') return lifeDiscountData.benchmarkRows?.gov_spot || lifeDiscountData.baseRows?.gov_spot || [];
-            if (period === 750) return lifeDiscountData.spreadBondRows?.[key] || [];
+            if (period === 750) return lifeDiscountData.benchmarkRows?.[key] || lifeDiscountData.spreadBondRows?.[key] || [];
             return null;
         }
 

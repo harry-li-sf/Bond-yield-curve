@@ -864,7 +864,17 @@ def generate_summary():
     save_json(SUMMARY_FILE, summary)
 
 
+def generate_derived_files() -> None:
+    generate_life_discount_curves()
+    generate_summary()
+
+
 def main():
+    if "--derived-only" in sys.argv:
+        print("Generating derived files from existing local data only")
+        generate_derived_files()
+        sys.exit(0)
+
     today_str = now_beijing().strftime("%Y-%m-%d")
     print("=" * 68)
     print("ChinaBond yield curve update: 9 curves x 2 measures")
