@@ -202,6 +202,7 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("PREMIUM_LIQUIDITY_PERIOD_CONTROL_IDS", text)
         self.assertIn("function premiumLiquidityPeriodForCurve", text)
         self.assertIn("premiumLiquidityPeriodForCurve(curve.key)", text)
+        self.assertIn("lifeDiscountData.benchmarkRows?.[key]", text)
         self.assertIn("PREMIUM_LIQUIDITY_CURVES", text)
         self.assertIn("for (const curve of PREMIUM_LIQUIDITY_CURVES)", text)
         self.assertIn("铁道债-国债（旧准则）", text)

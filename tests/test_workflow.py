@@ -30,6 +30,14 @@ class WorkflowPushTests(unittest.TestCase):
         self.assertIn("steps.data_mode.outputs.run_data_update == 'true'", text)
         self.assertIn("Fetch latest yield curve data", text)
 
+    def test_push_runs_derived_generation_without_network_fetch(self):
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("Generate derived files from existing data", text)
+        self.assertIn("python ci_update.py --derived-only", text)
+        derived_index = text.index("Generate derived files from existing data")
+        fetch_index = text.index("Fetch latest yield curve data")
+        self.assertLess(derived_index, fetch_index)
+
     def test_dependencies_are_installed_before_tests_on_push_runs(self):
         text = WORKFLOW.read_text(encoding="utf-8")
         install_index = text.index("- name: Install dependencies")
