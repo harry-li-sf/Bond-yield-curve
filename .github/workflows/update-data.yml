@@ -60,6 +60,10 @@ jobs:
       - name: Run tests
         run: python -m unittest discover -s tests -v
 
+      - name: Generate derived files from existing data
+        if: steps.data_mode.outputs.run_data_update != 'true'
+        run: python ci_update.py --derived-only
+
       - name: Fetch latest yield curve data
         if: steps.data_mode.outputs.run_data_update == 'true'
         run: python ci_update.py
