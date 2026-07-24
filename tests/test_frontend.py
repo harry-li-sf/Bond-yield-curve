@@ -9,7 +9,7 @@ METHODOLOGY = Path("methodology.html")
 class FrontendTests(unittest.TestCase):
     def test_life_discount_json_uses_cacheable_static_request(self):
         text = INDEX.read_text(encoding="utf-8")
-        self.assertIn("fetch('life_discount.json', { cache: 'force-cache' })", text)
+        self.assertIn("fetch('life_discount.json', { cache: 'no-cache' })", text)
         self.assertNotIn("life_discount.json?' + Date.now()", text)
 
     def test_life_discount_premium_controls_include_terminal_spread_and_premium_curve(self):
@@ -203,6 +203,10 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("function premiumLiquidityPeriodForCurve", text)
         self.assertIn("premiumLiquidityPeriodForCurve(curve.key)", text)
         self.assertIn("lifeDiscountData.benchmarkRows?.[key]", text)
+        self.assertIn("function ensurePremiumMonitorSourceData", text)
+        self.assertIn("premiumSourceMA", text)
+        self.assertIn("monitorRateFromSourceData", text)
+        self.assertIn("ensurePremiumMonitorSourceData().then(renderPremiumMonitor)", text)
         self.assertIn("PREMIUM_LIQUIDITY_CURVES", text)
         self.assertIn("for (const curve of PREMIUM_LIQUIDITY_CURVES)", text)
         self.assertIn("铁道债-国债（旧准则）", text)
