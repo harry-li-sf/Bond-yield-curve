@@ -982,6 +982,8 @@
         let lifeSelectedSpreadBond = null;
         let lifeFrontPremiumMode = 'yearly';
         let lifeLongPremiumMode = '50y';
+        let premiumSourceDataCache = {};
+        let premiumSourceDataPromise = null;
         let discountCharts = {};
         const discountRuleState = {
             legacy: { evalDate: null, compareDate: null, evalFrontPremiumBp: 20, evalLongPremiumBp: 20, compareFrontPremiumBp: 20, compareLongPremiumBp: 20, ultimateRate: 4.5, metric: 'base' },
@@ -3472,7 +3474,7 @@
         // ================================================================
         async function loadLifeDiscountData() {
             if (lifeDiscountData) return lifeDiscountData;
-            const resp = await fetch('life_discount.json', { cache: 'force-cache' });
+            const resp = await fetch('life_discount.json', { cache: 'no-cache' });
             if (!resp.ok) throw new Error('life_discount.json HTTP ' + resp.status);
             const raw = await resp.json();
             const normalized = normalizeLifeDiscountData(raw);
@@ -4063,14 +4065,69 @@
             return null;
         }
 
+        function premiumSourceKeys() {
+            return Array.from(new Set(['gov_spot', 'cdb_spot', 'rail_spot', 'corp_aaa_spot']));
+        }
+
+        async function ensurePremiumMonitorSourceData() {
+            const missing = premiumSourceKeys().filter(key => premiumSourceDataCache[key] === undefined && bondFiles[key]);
+            if (!missing.length) return premiumSourceDataCache;
+            if (premiumSourceDataPromise) return premiumSourceDataPromise;
+            premiumSourceDataPromise = Promise.all(missing.map(async key => {
+                try {
+                    const resp = await fetch(bondFiles[key], { cache: 'no-cache' });
+                    premiumSourceDataCache[key] = resp.ok ? await resp.json() : null;
+                } catch (e) {
+                    premiumSourceDataCache[key] = null;
+                }
+            })).then(() => {
+                premiumSourceDataPromise = null;
+                return premiumSourceDataCache;
+            });
+            return premiumSourceDataPromise;
+        }
+
+        function sourceRowValue(source, row, term) {
+            if (!source || !row) return null;
+            if (Array.isArray(row)) {
+                const idx = (source.terms || []).indexOf(term);
+                return idx >= 0 && idx < row.length ? sanitizeRate(row[idx]) : null;
+            }
+            return sanitizeRate(row[term]);
+        }
+
+        function premiumSourceMA(key, date, term, period) {
+            const source = premiumSourceDataCache[key];
+            const dates = source?.dates || [];
+            const rows = source?.rows || source?.rates || [];
+            const sourceDate = date && dates.includes(date) ? date : findLastTradeDate(dates, date);
+            const endIdx = sourceDate ? dates.indexOf(sourceDate) : -1;
+            if (endIdx < period - 1) return null;
+            let sum = 0;
+            let count = 0;
+            for (let i = endIdx; i >= 0 && count < period; i--) {
+                const value = sourceRowValue(source, rows[i], term);
+                if (value == null) return null;
+                sum += value;
+                count++;
+            }
+            return count === period ? Number((sum / period).toFixed(8)) : null;
+        }
+
+        function monitorRateFromSourceData(period, key, date, term) {
+            return premiumSourceMA(key, date, term, period);
+        }
+
         function monitorRate(period, key, date, term) {
             const sourceDate = date && (lifeDiscountData.dates || []).includes(date) ? date : lifeDateOnOrBefore(date);
             const idx = sourceDate ? lifeDiscountData.dates.indexOf(sourceDate) : -1;
             const termIdx = lifeTermIndex(term);
             const rows = monitorRowsFor(period, key);
-            if (!rows || idx < 0 || termIdx < 0) return null;
-            const row = projectLatestPremiumRow(lifeRowAt(rows, idx));
-            return row && termIdx < row.length ? row[termIdx] : null;
+            if (rows && idx >= 0 && termIdx >= 0) {
+                const row = projectLatestPremiumRow(lifeRowAt(rows, idx));
+                if (row && termIdx < row.length && row[termIdx] != null) return row[termIdx];
+            }
+            return monitorRateFromSourceData(period, key, date, term);
         }
 
         function monitorSpreadBp(period, key, date, term) {
@@ -4112,6 +4169,12 @@
             const id = PREMIUM_LIQUIDITY_PERIOD_CONTROL_IDS[key];
             const fallback = PREMIUM_LIQUIDITY_PERIOD_DEFAULTS[key] || 2500;
             return parseInt(document.getElementById(id)?.value || fallback, 10);
+        }
+
+        function premiumLiquidityFallbackValue(curveKey, row, termIndex, period) {
+            if (period !== PREMIUM_LIQUIDITY_PERIOD_DEFAULTS[curveKey]) return null;
+            const defaults = PREMIUM_EXCEL_DEFAULTS.liquidity[curveKey] || PREMIUM_EXCEL_DEFAULTS.liquidity.rail_spot;
+            return defaults.fallback[row.fallbackKey]?.[termIndex] ?? null;
         }
 
         function populatePremiumCounterTermSelect(id, selectedTerm) {
@@ -4159,6 +4222,9 @@
 
         function renderPremiumMonitor() {
             if (!lifeDiscountData) return;
+            if (premiumSourceKeys().some(key => premiumSourceDataCache[key] === undefined && bondFiles[key])) {
+                ensurePremiumMonitorSourceData().then(renderPremiumMonitor);
+            }
             const defaults = defaultPremiumDates();
             populatePremiumDateControls('premiumLiquidity', defaults);
             populatePremiumDateControls('premiumCounter', defaults);
@@ -4177,10 +4243,9 @@
                 let cells = '';
                 for (const curve of PREMIUM_LIQUIDITY_CURVES) {
                     const period = premiumLiquidityPeriodForCurve(curve.key);
-                    const liquidityDefault = PREMIUM_EXCEL_DEFAULTS.liquidity[curve.key] || PREMIUM_EXCEL_DEFAULTS.liquidity.rail_spot;
                     cells += liquidityTerms.map((term, i) => {
                         const computed = monitorSpreadBp(period, curve.key, row.date, term);
-                        const fallback = liquidityDefault.fallback[row.fallbackKey]?.[i];
+                        const fallback = premiumLiquidityFallbackValue(curve.key, row, i, period);
                         return '<td>' + fmtBpValue(computed != null ? computed : fallback) + '</td>';
                     }).join('');
                 }
