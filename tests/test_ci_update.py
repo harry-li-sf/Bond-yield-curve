@@ -174,6 +174,9 @@ class LifeDiscountTests(unittest.TestCase):
         self.assertEqual(starts["gov_ytm"], ci_update.START_DATE)
         self.assertEqual(starts["corp_aa_spot"], ci_update.START_DATE)
 
+    def test_premium_monitor_history_start_covers_2023_year_end_2500ma(self):
+        self.assertLessEqual(ci_update.PREMIUM_HISTORY_START_DATE, "2013-01-01")
+
     def test_existing_monitor_dataset_backfills_when_history_is_short(self):
         dataset = ci_update.DATASET_BY_KEY["gov_spot"]
         existing = {
