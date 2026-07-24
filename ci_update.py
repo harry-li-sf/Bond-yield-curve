@@ -191,11 +191,14 @@ def has_current_metadata(dataset: DatasetConfig, existing: dict) -> bool:
 
 
 def dataset_history_start(dataset: DatasetConfig) -> str:
+    if dataset.key in LIFE_MONITOR_DATASET_KEYS:
+        return PREMIUM_HISTORY_START_DATE
     return START_DATE
 
 
 def needs_extended_history_rebuild(dataset: DatasetConfig, existing: dict) -> bool:
-    return False
+    dates = existing.get("dates") or []
+    return dataset.key in LIFE_MONITOR_DATASET_KEYS and bool(dates) and dates[0] > PREMIUM_HISTORY_START_DATE
 
 
 def next_fetch_date_for_dataset(dataset: DatasetConfig, existing: dict) -> str:
@@ -394,18 +397,28 @@ def append_dataset_day(states: Dict[str, dict], dataset: DatasetConfig, day: str
 
 def dataset_needs_day(state: dict, day: str) -> bool:
     dates = state.get("dates") or []
-    return not dates or day > dates[-1]
+    return day not in set(dates)
+
+
+def sort_dataset_state(state: dict) -> None:
+    rows_by_date = {
+        day: state.get("rows", [])[index]
+        for index, day in enumerate(state.get("dates", []))
+    }
+    dates = sorted(rows_by_date)
+    state["dates"] = dates
+    state["rows"] = [rows_by_date[day] for day in dates]
 
 
 def update_all_datasets(today_str: str) -> Dict[str, bool]:
     states = {}
     starts = []
+    starts_by_key = {}
     for dataset in ALL_DATASETS:
         state = load_existing(dataset.filename, dataset.terms)
         start = next_fetch_date_for_dataset(dataset, state)
-        if needs_extended_history_rebuild(dataset, state):
-            state = empty_dataset(dataset)
-        elif start == dataset_history_start(dataset) and not dataset.is_legacy_file and not has_current_metadata(dataset, state):
+        starts_by_key[dataset.key] = start
+        if start == dataset_history_start(dataset) and not dataset.is_legacy_file and not has_current_metadata(dataset, state):
             state = empty_dataset(dataset)
         states[dataset.key] = state
         if start <= today_str:
@@ -419,7 +432,11 @@ def update_all_datasets(today_str: str) -> Dict[str, bool]:
     print(f"Fetch range: {start} -> {today_str}")
 
     for day in iter_weekdays(start, today_str):
-        pending = [dataset for dataset in ALL_DATASETS if dataset_needs_day(states[dataset.key], day)]
+        pending = [
+            dataset
+            for dataset in ALL_DATASETS
+            if day >= starts_by_key[dataset.key] and dataset_needs_day(states[dataset.key], day)
+        ]
         if not pending:
             continue
 
@@ -470,6 +487,7 @@ def update_all_datasets(today_str: str) -> Dict[str, bool]:
 
     for dataset in ALL_DATASETS:
         state = states[dataset.key]
+        sort_dataset_state(state)
         state["terms"] = dataset.terms
         state["meta"] = dataset.meta
         save_json(dataset.filename, state)
