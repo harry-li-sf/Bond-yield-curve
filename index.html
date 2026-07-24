@@ -152,6 +152,12 @@
         .premium-input-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px 10px; margin-bottom: 12px; }
         .premium-input-grid label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: #385574; font-weight: 600; }
         .premium-input-grid input, .premium-input-grid select { padding: 5px 7px; border: 1px solid #c7d5e5; border-radius: 7px; background: #fff; color: #1a2b44; font-size: 12px; }
+        .discount-param-grid { display: grid; gap: 10px; margin-bottom: 12px; }
+        .discount-param-row { display: grid; grid-template-columns: minmax(125px, 1fr) repeat(2, minmax(145px, 1fr)); gap: 8px 10px; align-items: end; }
+        .discount-param-row label { display: flex; min-width: 0; flex-direction: column; gap: 3px; font-size: 11.5px; color: #385574; font-weight: 600; }
+        .discount-param-row input, .discount-param-row select { width: 100%; min-width: 0; padding: 5px 7px; border: 1px solid #c7d5e5; border-radius: 7px; background: #fff; color: #1a2b44; font-size: 12px; }
+        .discount-param-row.shared { grid-template-columns: minmax(125px, 1fr) 2fr; }
+        @media (max-width: 640px) { .discount-param-row, .discount-param-row.shared { grid-template-columns: 1fr; } }
         .ma-curve-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
         .ma-curve-item { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #3e5a7a; cursor: pointer; }
         .ma-curve-item input[type="checkbox"] { accent-color: #1f4a7a; width: 14px; height: 14px; }
@@ -483,7 +489,7 @@
                             <label>预测时点<select id="premiumLongForecastDate"></select></label>
                         </div>
                         <div class="table-wrap"><table><thead id="premiumLongSpreadHeader"></thead><tbody id="premiumLongSpreadBody"></tbody></table></div>
-                        <div class="footnote">计算方法：40年后溢价 = (40Y国债收益率 + 50Y国债收益率) / 2 - 基准期限国债收益率。例如 10Y/40Y/50Y 为 3.2%/3.4%/3.6%，则基于10Y的平均利差为 (3.4%+3.6%)/2-3.2%=30bp。</div>
+                        <div class="footnote">计算方法：40年后溢价 = (40Y国债收益率 + 50Y国债收益率) / 2 - 基准期限国债收益率。旧准则使用2500日移动平均，新准则使用750日移动平均；基准期限分别列示10Y、15Y和20Y。例如 10Y/40Y/50Y 为 3.2%/3.4%/3.6%，则基于10Y的平均利差为 (3.4%+3.6%)/2-3.2%=30bp。</div>
                     </div>
                 </div>
             </div>
@@ -3854,62 +3860,7 @@
             }).join('');
         }
 
-        const PREMIUM_EXCEL_DEFAULTS = {
-            frontPremiumBp: 20,
-            longPremiumBp: 20,
-            ultimateRate: 4.5,
-            liquidity: {
-                rail_spot: {
-                    label: '铁道债 - 国债',
-                    fallback: {
-                        '2023': [95, 82, 83, 83],
-                        '2024': [84, 70, 70, 70],
-                        '2025': [78, 62, 62, 62],
-                        eval: [77, 62, 62, 62],
-                        forecast: [77, 62, 62, 62]
-                    }
-                },
-                corp_aaa_spot: {
-                    label: 'AAA企业债 - 国债',
-                    fallback: {
-                        '2023': [108, 93, 95, 83],
-                        '2024': [96, 81, 82, 70],
-                        '2025': [89, 73, 72, 62],
-                        eval: [89, 72, 72, 62],
-                        forecast: [89, 72, 72, 62]
-                    }
-                },
-                cdb_spot: {
-                    label: '国开债 - 国债',
-                    fallback: {
-                        '2023': [108, 93, 95, 83],
-                        '2024': [96, 81, 82, 70],
-                        '2025': [89, 73, 72, 62],
-                        eval: [89, 72, 72, 62],
-                        forecast: [89, 72, 72, 62]
-                    }
-                }
-            },
-            counterCycle: {
-                terms: ['19Y', '20Y', '21Y', '22Y', '23Y'],
-                fallback: {
-                    '2023': [12, 12, 12, 12, 12],
-                    '2024': [16, 16, 16, 16, 16],
-                    '2025': [20, 20, 20, 20, 20],
-                    eval: [21, 21, 21, 21, 21],
-                    forecast: [21, 21, 21, 21, 21]
-                }
-            },
-            longSpread: {
-                fallback: {
-                    '2023': [76, 56, 32],
-                    '2024': [40, 35, 30],
-                    '2025': [27, 27, 27],
-                    eval: [37, 32, 27],
-                    forecast: [37, 32, 27]
-                }
-            }
-        };
+        const PREMIUM_COUNTER_DEFAULT_TERMS = ['19Y', '20Y', '21Y', '22Y', '23Y'];
 
         const PREMIUM_MONITOR_CURVES = [
             { key: 'rail_spot', label: '铁道债' },
@@ -4119,6 +4070,13 @@
         }
 
         function monitorRate(period, key, date, term) {
+            const rawSource = premiumSourceDataCache[key];
+            if (rawSource) {
+                return monitorRateFromSourceData(period, key, date, term);
+            }
+            if (rawSource === undefined) {
+                return null;
+            }
             const sourceDate = date && (lifeDiscountData.dates || []).includes(date) ? date : lifeDateOnOrBefore(date);
             const idx = sourceDate ? lifeDiscountData.dates.indexOf(sourceDate) : -1;
             const termIdx = lifeTermIndex(term);
@@ -4127,7 +4085,7 @@
                 const row = projectLatestPremiumRow(lifeRowAt(rows, idx));
                 if (row && termIdx < row.length && row[termIdx] != null) return row[termIdx];
             }
-            return monitorRateFromSourceData(period, key, date, term);
+            return null;
         }
 
         function monitorSpreadBp(period, key, date, term) {
@@ -4171,12 +4129,6 @@
             return parseInt(document.getElementById(id)?.value || fallback, 10);
         }
 
-        function premiumLiquidityFallbackValue(curveKey, row, termIndex, period) {
-            if (period !== PREMIUM_LIQUIDITY_PERIOD_DEFAULTS[curveKey]) return null;
-            const defaults = PREMIUM_EXCEL_DEFAULTS.liquidity[curveKey] || PREMIUM_EXCEL_DEFAULTS.liquidity.rail_spot;
-            return defaults.fallback[row.fallbackKey]?.[termIndex] ?? null;
-        }
-
         function populatePremiumCounterTermSelect(id, selectedTerm) {
             const select = document.getElementById(id);
             if (!select) return;
@@ -4201,14 +4153,14 @@
         }
 
         function premiumCounterTerms() {
-            const terms = lifeDiscountData?.terms || PREMIUM_EXCEL_DEFAULTS.counterCycle.terms;
+            const terms = lifeDiscountData?.terms || PREMIUM_COUNTER_DEFAULT_TERMS;
             const startTerm = document.getElementById('premiumCounterStartTerm')?.value || '19Y';
             const endTerm = document.getElementById('premiumCounterEndTerm')?.value || '23Y';
             let startIdx = terms.indexOf(startTerm);
             let endIdx = terms.indexOf(endTerm);
             if (startIdx < 0) startIdx = terms.indexOf('19Y');
             if (endIdx < 0) endIdx = terms.indexOf('23Y');
-            if (startIdx < 0 || endIdx < 0) return PREMIUM_EXCEL_DEFAULTS.counterCycle.terms;
+            if (startIdx < 0 || endIdx < 0) return PREMIUM_COUNTER_DEFAULT_TERMS;
             if (startIdx > endIdx) [startIdx, endIdx] = [endIdx, startIdx];
             return terms.slice(startIdx, endIdx + 1);
         }
@@ -4218,6 +4170,14 @@
             const longMa = monitorRate(2500, 'gov_spot', baseDate, term);
             const shortMa = monitorRate(250, 'gov_spot', baseDate, term);
             return longMa != null && shortMa != null ? Number(((longMa - shortMa) * 25).toFixed(1)) : null;
+        }
+
+        function premiumLongSpreadBp(period, date, baseTerm) {
+            const rate40 = monitorRate(period, 'gov_spot', date, '40Y');
+            const rate50 = monitorRate(period, 'gov_spot', date, '50Y');
+            const shortRate = monitorRate(period, 'gov_spot', date, baseTerm);
+            if (rate40 == null || rate50 == null || shortRate == null) return null;
+            return Number(((((rate40 + rate50) / 2) - shortRate) * 100).toFixed(1));
         }
 
         function renderPremiumMonitor() {
@@ -4245,8 +4205,7 @@
                     const period = premiumLiquidityPeriodForCurve(curve.key);
                     cells += liquidityTerms.map((term, i) => {
                         const computed = monitorSpreadBp(period, curve.key, row.date, term);
-                        const fallback = premiumLiquidityFallbackValue(curve.key, row, i, period);
-                        return '<td>' + fmtBpValue(computed != null ? computed : fallback) + '</td>';
+                        return '<td>' + fmtBpValue(computed) + '</td>';
                     }).join('');
                 }
                 return '<tr><td><strong>' + row.roleLabel + '</strong></td><td>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</td>' + cells + '</tr>';
@@ -4255,27 +4214,28 @@
             const counterTerms = premiumCounterTerms();
             document.getElementById('premiumCounterCycleHeader').innerHTML = '<tr><th>类型</th><th>日期</th>' + counterTerms.map(t => '<th>' + t + '</th>').join('') + '</tr>';
             document.getElementById('premiumCounterCycleBody').innerHTML = premiumMonitorRows(counterDates).map(row => {
-                const fallback = PREMIUM_EXCEL_DEFAULTS.counterCycle.fallback[row.fallbackKey] || PREMIUM_EXCEL_DEFAULTS.counterCycle.fallback.eval;
                 const cells = counterTerms.map(term => {
                     const computed = counterCycleBp(row, term, counterDates.evalDate);
-                    const fallbackIdx = PREMIUM_EXCEL_DEFAULTS.counterCycle.terms.indexOf(term);
-                    const fallbackValue = fallbackIdx >= 0 ? fallback[fallbackIdx] : null;
-                    return '<td>' + fmtBpValue(computed != null ? computed : fallbackValue) + '</td>';
+                    return '<td>' + fmtBpValue(computed) + '</td>';
                 }).join('');
                 return '<tr><td><strong>' + row.roleLabel + '</strong></td><td>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</td>' + cells + '</tr>';
             }).join('');
 
-            const longTerms = ['10Y口径', '20Y口径', '40-50Y平均口径'];
-            document.getElementById('premiumLongSpreadHeader').innerHTML = '<tr><th>类型</th><th>日期</th>' + longTerms.map(t => '<th>' + t + '</th>').join('') + '</tr>';
+            const longGroups = [
+                { period: 2500, label: '2500日移动平均（旧准则）' },
+                { period: 750, label: '750日移动平均（新准则）' }
+            ];
+            const longBaseTerms = [
+                { term: '10Y', label: '平均利差（基于10年）' },
+                { term: '15Y', label: '平均利差（基于15年）' },
+                { term: '20Y', label: '平均利差（基于20年）' }
+            ];
+            const longGroupHeader = longGroups.map(group => '<th colspan="' + longBaseTerms.length + '">' + group.label + '</th>').join('');
+            const longTermHeader = longGroups.map(() => longBaseTerms.map(item => '<th>' + item.label + '</th>').join('')).join('');
+            document.getElementById('premiumLongSpreadHeader').innerHTML = '<tr><th rowspan="2">类型</th><th rowspan="2">日期</th>' + longGroupHeader + '</tr><tr>' + longTermHeader + '</tr>';
             document.getElementById('premiumLongSpreadBody').innerHTML = premiumMonitorRows(longDates).map(row => {
                 const baseDate = row.type === 'forecast' ? longDates.evalDate : row.date;
-                const values = ['10Y', '20Y', '20Y'].map((term, i) => {
-                    const rate40 = monitorRate(750, 'gov_spot', baseDate, '40Y');
-                    const rate50 = monitorRate(750, 'gov_spot', baseDate, '50Y');
-                    const short = monitorRate(750, 'gov_spot', baseDate, term);
-                    const computed = rate40 != null && rate50 != null && short != null ? ((rate40 + rate50) / 2 - short) * 100 : null;
-                    return computed != null ? Number(computed.toFixed(1)) : PREMIUM_EXCEL_DEFAULTS.longSpread.fallback[row.fallbackKey]?.[i];
-                });
+                const values = longGroups.flatMap(group => longBaseTerms.map(item => premiumLongSpreadBp(group.period, baseDate, item.term)));
                 return '<tr><td><strong>' + row.roleLabel + '</strong></td><td>' + row.label + (row.type === 'forecast' ? '（平推）' : '') + '</td>' + values.map(v => '<td>' + fmtBpValue(v) + '</td>').join('') + '</tr>';
             }).join('');
         }
@@ -4395,15 +4355,18 @@
             const dateOptions = (lifeDiscountData.dates || []).slice().reverse().map(d => '<option value="' + d + '"' + (d === state.evalDate ? ' selected' : '') + '>' + d + '</option>').join('');
             const compareOptions = (lifeDiscountData.dates || []).slice().reverse().map(d => '<option value="' + d + '"' + (d === state.compareDate ? ' selected' : '') + '>' + d + '</option>').join('');
             el.innerHTML = '<div class="card-title"><span>' + DISCOUNT_RULE_NAMES[rule] + ' · 参数</span></div>' +
-                '<div class="premium-input-grid">' +
+                '<div class="discount-param-grid">' +
+                '<div class="discount-param-row" data-point="eval">' +
                 '<label>评估时点<select id="' + rule + 'DiscountEvalDate">' + dateOptions + '</select></label>' +
+                '<label>评估时点前20年溢价（bp）<input id="' + rule + 'DiscountEvalFrontPremium" type="number" value="' + state.evalFrontPremiumBp + '" step="1"></label>' +
+                '<label>评估时点40年后溢价（bp）<input id="' + rule + 'DiscountEvalLongPremium" type="number" value="' + state.evalLongPremiumBp + '" step="1"></label>' +
+                '</div><div class="discount-param-row" data-point="compare">' +
                 '<label>对比时点<select id="' + rule + 'DiscountCompareDate">' + compareOptions + '</select></label>' +
-                '<label>评估前20年溢价(bp)<input id="' + rule + 'DiscountEvalFrontPremium" type="number" value="' + state.evalFrontPremiumBp + '" step="1"></label>' +
-                '<label>评估40年后溢价(bp)<input id="' + rule + 'DiscountEvalLongPremium" type="number" value="' + state.evalLongPremiumBp + '" step="1"></label>' +
-                '<label>对比前20年溢价(bp)<input id="' + rule + 'DiscountCompareFrontPremium" type="number" value="' + state.compareFrontPremiumBp + '" step="1"></label>' +
-                '<label>对比40年后溢价(bp)<input id="' + rule + 'DiscountCompareLongPremium" type="number" value="' + state.compareLongPremiumBp + '" step="1"></label>' +
-                '<label>终极利率(%)<input id="' + rule + 'DiscountUltimateRate" type="number" value="' + state.ultimateRate + '" step="0.1"></label>' +
-                '</div><div class="footnote">计算方法：综合溢价1-20年为输入值，20-40年线性插值至40年后输入值，40年及以后保持不变；即期折现率=基础曲线+综合溢价；远期折现率=逐年即期折现率推导。</div>';
+                '<label>对比时点前20年溢价（bp）<input id="' + rule + 'DiscountCompareFrontPremium" type="number" value="' + state.compareFrontPremiumBp + '" step="1"></label>' +
+                '<label>对比时点40年后溢价（bp）<input id="' + rule + 'DiscountCompareLongPremium" type="number" value="' + state.compareLongPremiumBp + '" step="1"></label>' +
+                '</div><div class="discount-param-row shared">' +
+                '<label>终极利率（%）<input id="' + rule + 'DiscountUltimateRate" type="number" value="' + state.ultimateRate + '" step="0.1"></label>' +
+                '</div></div><div class="footnote">计算方法：综合溢价1-20年为输入值，20-40年线性插值至40年后输入值，40年及以后保持不变；即期折现率=基础曲线+综合溢价；远期折现率=逐年即期折现率推导。</div>';
             ['EvalDate', 'CompareDate', 'EvalFrontPremium', 'EvalLongPremium', 'CompareFrontPremium', 'CompareLongPremium', 'UltimateRate'].forEach(suffix => {
                 const ctl = document.getElementById(rule + 'Discount' + suffix);
                 if (ctl) ctl.onchange = function() { updateDiscountRuleState(rule); };

@@ -178,10 +178,44 @@ class FrontendTests(unittest.TestCase):
         self.assertIn('id="premiumLiquidityBody"', text)
         self.assertIn('id="premiumCounterCycleBody"', text)
         self.assertIn('id="premiumLongSpreadBody"', text)
-        self.assertIn("PREMIUM_EXCEL_DEFAULTS", text)
+        self.assertIn("PREMIUM_COUNTER_DEFAULT_TERMS", text)
+        self.assertNotIn("PREMIUM_EXCEL_DEFAULTS", text)
         self.assertIn("function renderPremiumMonitor", text)
         self.assertIn("function defaultPremiumDates", text)
         self.assertIn("function projectLatestPremiumRow", text)
+
+    def test_premium_monitor_uses_live_values_without_excel_number_fallbacks(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertNotIn("function premiumLiquidityFallbackValue", text)
+        self.assertNotIn("PREMIUM_EXCEL_DEFAULTS.counterCycle.fallback", text)
+        self.assertNotIn("PREMIUM_EXCEL_DEFAULTS.longSpread.fallback", text)
+        self.assertIn("fmtBpValue(computed)", text)
+
+    def test_premium_monitor_prefers_raw_curve_data_over_precomputed_rows(self):
+        text = INDEX.read_text(encoding="utf-8")
+        start = text.index("function monitorRate(period, key, date, term)")
+        end = text.index("function monitorSpreadBp", start)
+        body = text[start:end]
+        self.assertIn("premiumSourceDataCache[key]", body)
+        self.assertIn("monitorRateFromSourceData(period, key, date, term)", body)
+        self.assertLess(
+            body.index("monitorRateFromSourceData(period, key, date, term)"),
+            body.index("monitorRowsFor(period, key)"),
+        )
+
+    def test_long_spread_monitor_matches_excel_grouped_structure_and_formula(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn("function premiumLongSpreadBp(period, date, baseTerm)", text)
+        self.assertIn("monitorRate(period, 'gov_spot', date, '40Y')", text)
+        self.assertIn("monitorRate(period, 'gov_spot', date, '50Y')", text)
+        self.assertIn("monitorRate(period, 'gov_spot', date, baseTerm)", text)
+        self.assertIn("2500日移动平均（旧准则）", text)
+        self.assertIn("750日移动平均（新准则）", text)
+        self.assertIn("平均利差（基于10年）", text)
+        self.assertIn("平均利差（基于15年）", text)
+        self.assertIn("平均利差（基于20年）", text)
+        self.assertIn("premiumLongSpreadBp(group.period, baseDate, item.term)", text)
+        self.assertNotIn("40-50Y平均口径", text)
 
     def test_premium_monitor_observation_dates_are_selectable_and_liquidity_shows_all_curves(self):
         text = INDEX.read_text(encoding="utf-8")
@@ -263,6 +297,16 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("DiscountCompareFrontPremium", text)
         self.assertIn("DiscountEvalLongPremium", text)
         self.assertIn("DiscountCompareLongPremium", text)
+
+    def test_discount_generation_parameters_keep_each_date_group_on_one_row(self):
+        text = INDEX.read_text(encoding="utf-8")
+        self.assertIn('class="discount-param-row" data-point="eval"', text)
+        self.assertIn('class="discount-param-row" data-point="compare"', text)
+        self.assertIn("评估时点前20年溢价（bp）", text)
+        self.assertIn("评估时点40年后溢价（bp）", text)
+        self.assertIn("对比时点前20年溢价（bp）", text)
+        self.assertIn("对比时点40年后溢价（bp）", text)
+        self.assertIn(".discount-param-row { display: grid;", text)
 
     def test_discount_generation_table_matches_excel_three_block_layout(self):
         text = INDEX.read_text(encoding="utf-8")
