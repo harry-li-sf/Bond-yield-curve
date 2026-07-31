@@ -26,8 +26,10 @@ PRESET_MODEL_SOURCE_URL = "https://hh9616.github.io/preset-rate-reference-model/
 SUMMARY_FILE = "summary.json"
 LIFE_DISCOUNT_FILE = "life_discount.json"
 PRESET_MODEL_FILE = "preset_model_data.js"
+MAKEUP_AUDIT_FILE = "data_makeup_weekend_audit.json"
 DATA_SCHEMA_VERSION = 2
 LIFE_DISCOUNT_SCHEMA_VERSION = 3
+MAKEUP_AUDIT_SCHEMA_VERSION = 1
 START_DATE = "2020-01-02"
 PREMIUM_HISTORY_START_DATE = "2013-01-01"
 SUMMARY_TERMS = ["1Y", "5Y", "10Y", "20Y", "30Y"]
@@ -49,6 +51,37 @@ LIFE_LONG_PREMIUM_OPTIONS = [
 BJ_TZ = timezone(timedelta(hours=8))
 MAX_RETRIES = 3
 RETRY_DELAY = 3
+MAKEUP_EMPTY_GRACE_DAYS = 7
+
+# Weekend workdays published in the annual State Council holiday schedules.
+# Each curve still has to return valid ChinaBond data before the date is stored.
+MAKEUP_WORKDAY_CANDIDATES = {
+    "2013-01-05", "2013-01-06", "2013-02-16", "2013-02-17", "2013-04-07",
+    "2013-04-27", "2013-04-28", "2013-06-08", "2013-06-09", "2013-09-22",
+    "2013-09-29", "2013-10-12",
+    "2014-01-26", "2014-02-08", "2014-05-04", "2014-09-28", "2014-10-11",
+    "2015-01-04", "2015-02-15", "2015-02-28", "2015-09-06", "2015-10-10",
+    "2016-02-06", "2016-02-14", "2016-06-12", "2016-09-18", "2016-10-08",
+    "2016-10-09",
+    "2017-01-22", "2017-02-04", "2017-04-01", "2017-05-27", "2017-09-30",
+    "2018-02-11", "2018-02-24", "2018-04-08", "2018-04-28", "2018-09-29",
+    "2018-09-30", "2018-12-29",
+    "2019-02-02", "2019-02-03", "2019-04-28", "2019-05-05", "2019-09-29",
+    "2019-10-12",
+    "2020-01-19", "2020-04-26", "2020-05-09", "2020-06-28", "2020-09-27",
+    "2020-10-10",
+    "2021-02-07", "2021-02-20", "2021-04-25", "2021-05-08", "2021-09-18",
+    "2021-09-26", "2021-10-09",
+    "2022-01-29", "2022-01-30", "2022-04-02", "2022-04-24", "2022-05-07",
+    "2022-10-08", "2022-10-09",
+    "2023-01-28", "2023-01-29", "2023-04-23", "2023-05-06", "2023-06-25",
+    "2023-10-07", "2023-10-08",
+    "2024-02-04", "2024-02-18", "2024-04-07", "2024-04-28", "2024-05-11",
+    "2024-09-14", "2024-09-29", "2024-10-12",
+    "2025-01-26", "2025-02-08", "2025-04-27", "2025-09-28", "2025-10-11",
+    "2026-01-04", "2026-02-14", "2026-02-28", "2026-05-09", "2026-09-20",
+    "2026-10-10",
+}
 
 SEARCHYC_HEADERS = {
     "User-Agent": "Mozilla/5.0",
@@ -232,6 +265,50 @@ def save_json(filepath: str, data: dict):
     os.replace(tmp, filepath)
 
 
+def empty_makeup_audit() -> dict:
+    return {"schemaVersion": MAKEUP_AUDIT_SCHEMA_VERSION, "datasets": {}}
+
+
+def load_makeup_audit() -> dict:
+    if not os.path.exists(MAKEUP_AUDIT_FILE):
+        return empty_makeup_audit()
+    try:
+        with open(MAKEUP_AUDIT_FILE, "r", encoding="utf-8") as f:
+            audit = json.load(f)
+    except (OSError, ValueError):
+        return empty_makeup_audit()
+    if audit.get("schemaVersion") != MAKEUP_AUDIT_SCHEMA_VERSION:
+        return empty_makeup_audit()
+    audit.setdefault("datasets", {})
+    return audit
+
+
+def record_makeup_audit(audit: dict, dataset_key: str, day: str, status: str) -> None:
+    audit.setdefault("schemaVersion", MAKEUP_AUDIT_SCHEMA_VERSION)
+    audit.setdefault("datasets", {}).setdefault(dataset_key, {})[day] = status
+
+
+def makeup_dataset_needs_check(
+    dataset: DatasetConfig,
+    state: dict,
+    audit: dict,
+    day: str,
+    today_str: str,
+) -> bool:
+    if day not in MAKEUP_WORKDAY_CANDIDATES or day > today_str:
+        return False
+    if day < dataset_history_start(dataset) or day in set(state.get("dates") or []):
+        return False
+    status = audit.get("datasets", {}).get(dataset.key, {}).get(day)
+    return status not in {"data", "empty"}
+
+
+def makeup_empty_is_final(day: str, today_str: str) -> bool:
+    candidate = datetime.strptime(day, "%Y-%m-%d").date()
+    today = datetime.strptime(today_str, "%Y-%m-%d").date()
+    return (today - candidate).days >= MAKEUP_EMPTY_GRACE_DAYS
+
+
 def save_text(filepath: str, text: str):
     tmp = filepath + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -302,9 +379,11 @@ def searchyc_payload(curve_ids: List[str], qxll: str, query_date: str) -> dict:
     }
 
 
-def fetch_searchyc_bundle(curves: List[CurveConfig], qxll: str, query_date: str) -> Dict[str, Dict[str, float]]:
+def fetch_searchyc_bundle_result(
+    curves: List[CurveConfig], qxll: str, query_date: str
+) -> tuple[Dict[str, Dict[str, float]], bool]:
     if not curves:
-        return {}
+        return {}, True
 
     payload = searchyc_payload([curve.yc_def_id for curve in curves], qxll, query_date)
     last_error: Optional[Exception] = None
@@ -314,7 +393,7 @@ def fetch_searchyc_bundle(curves: List[CurveConfig], qxll: str, query_date: str)
             resp.raise_for_status()
             raw = resp.json()
             if not raw or not isinstance(raw, list):
-                return {}
+                return {}, True
 
             results: Dict[str, Dict[str, float]] = {}
             requested_by_id = {curve.yc_def_id: curve for curve in curves}
@@ -326,7 +405,7 @@ def fetch_searchyc_bundle(curves: List[CurveConfig], qxll: str, query_date: str)
                 if curve is None:
                     continue
                 results[curve.key] = normalize_rates(item.get("seriesData", []), curve.max_year)
-            return results
+            return results, True
         except Exception as exc:  # pragma: no cover - exercised in GitHub Actions/network
             last_error = exc
             if attempt < MAX_RETRIES:
@@ -334,7 +413,11 @@ def fetch_searchyc_bundle(curves: List[CurveConfig], qxll: str, query_date: str)
                 time.sleep(RETRY_DELAY)
 
     print(f"  {query_date} qxll={qxll}: failed - {last_error}")
-    return {}
+    return {}, False
+
+
+def fetch_searchyc_bundle(curves: List[CurveConfig], qxll: str, query_date: str) -> Dict[str, Dict[str, float]]:
+    return fetch_searchyc_bundle_result(curves, qxll, query_date)[0]
 
 
 def fetch_dataset_rates(dataset: DatasetConfig, query_date: str) -> Dict[str, float]:
@@ -414,6 +497,8 @@ def update_all_datasets(today_str: str) -> Dict[str, bool]:
     states = {}
     starts = []
     starts_by_key = {}
+    audit = load_makeup_audit()
+    audit_before = json.dumps(audit, ensure_ascii=False, sort_keys=True)
     for dataset in ALL_DATASETS:
         state = load_existing(dataset.filename, dataset.terms)
         start = next_fetch_date_for_dataset(dataset, state)
@@ -424,18 +509,36 @@ def update_all_datasets(today_str: str) -> Dict[str, bool]:
         if start <= today_str:
             starts.append(start)
 
-    if not starts:
+    makeup_days = sorted(
+        day
+        for day in MAKEUP_WORKDAY_CANDIDATES
+        if any(
+            makeup_dataset_needs_check(dataset, states[dataset.key], audit, day, today_str)
+            for dataset in ALL_DATASETS
+        )
+    )
+    if not starts and not makeup_days:
         return {dataset.key: False for dataset in ALL_DATASETS}
 
     changed = {dataset.key: False for dataset in ALL_DATASETS}
-    start = min(starts)
-    print(f"Fetch range: {start} -> {today_str}")
+    normal_days = list(iter_weekdays(min(starts), today_str)) if starts else []
+    candidate_days = sorted(set(normal_days) | set(makeup_days))
+    if starts:
+        print(f"Fetch range: {min(starts)} -> {today_str}")
+    if makeup_days:
+        print(f"Makeup weekend checks: {makeup_days[0]} -> {makeup_days[-1]} ({len(makeup_days)} dates)")
 
-    for day in iter_weekdays(start, today_str):
+    for day in candidate_days:
+        makeup_pending_keys = {
+            dataset.key
+            for dataset in ALL_DATASETS
+            if makeup_dataset_needs_check(dataset, states[dataset.key], audit, day, today_str)
+        }
         pending = [
             dataset
             for dataset in ALL_DATASETS
-            if day >= starts_by_key[dataset.key] and dataset_needs_day(states[dataset.key], day)
+            if dataset_needs_day(states[dataset.key], day)
+            and (day >= starts_by_key[dataset.key] or dataset.key in makeup_pending_keys)
         ]
         if not pending:
             continue
@@ -454,36 +557,60 @@ def update_all_datasets(today_str: str) -> Dict[str, bool]:
                 if dataset.curve not in spot_curves:
                     spot_curves.append(dataset.curve)
 
-        spot_results = fetch_searchyc_bundle(spot_curves, "1", day) if spot_curves else {}
-        ytm_results = fetch_searchyc_bundle(ytm_curves, "0", day) if ytm_curves else {}
+        spot_results, spot_completed = (
+            fetch_searchyc_bundle_result(spot_curves, "1", day) if spot_curves else ({}, True)
+        )
+        ytm_results, ytm_completed = (
+            fetch_searchyc_bundle_result(ytm_curves, "0", day) if ytm_curves else ({}, True)
+        )
 
         for dataset in [d for d in pending if not d.requires_isolated_fetch]:
             rates: Dict[str, float] = {}
             if dataset.is_bootstrapped:
                 ytm = ytm_results.get(dataset.curve.key, {})
                 rates = bootstrap_spot_from_ytm(ytm) if ytm else {}
+                request_completed = ytm_completed
             elif dataset.rate_type == "spot":
                 rates = spot_results.get(dataset.curve.key, {})
+                request_completed = spot_completed
             else:
                 rates = ytm_results.get(dataset.curve.key, {})
+                request_completed = ytm_completed
 
             if rates:
                 append_dataset_day(states, dataset, day, rates)
                 changed[dataset.key] = True
                 print(f"  {day} {dataset.display_name}: {len(rates)} terms")
+                if dataset.key in makeup_pending_keys:
+                    record_makeup_audit(audit, dataset.key, day, "data")
+            elif (
+                dataset.key in makeup_pending_keys
+                and request_completed
+                and makeup_empty_is_final(day, today_str)
+            ):
+                record_makeup_audit(audit, dataset.key, day, "empty")
 
-        isolated_cache: Dict[tuple, Dict[str, float]] = {}
+        isolated_cache: Dict[tuple, tuple[Dict[str, float], bool]] = {}
         for dataset in isolated:
             cache_qxll = "0" if dataset.is_bootstrapped else dataset.qxll
             cache_key = (dataset.curve.key, cache_qxll)
             if cache_key not in isolated_cache:
-                isolated_cache[cache_key] = fetch_searchyc_bundle([dataset.curve], cache_qxll, day).get(dataset.curve.key, {})
-            raw_rates = isolated_cache[cache_key]
+                results, request_completed = fetch_searchyc_bundle_result([dataset.curve], cache_qxll, day)
+                isolated_cache[cache_key] = (results.get(dataset.curve.key, {}), request_completed)
+            raw_rates, request_completed = isolated_cache[cache_key]
             rates = bootstrap_spot_from_ytm(raw_rates) if dataset.is_bootstrapped and raw_rates else raw_rates
             if rates:
                 append_dataset_day(states, dataset, day, rates)
                 changed[dataset.key] = True
                 print(f"  {day} {dataset.display_name}: {len(rates)} terms")
+                if dataset.key in makeup_pending_keys:
+                    record_makeup_audit(audit, dataset.key, day, "data")
+            elif (
+                dataset.key in makeup_pending_keys
+                and request_completed
+                and makeup_empty_is_final(day, today_str)
+            ):
+                record_makeup_audit(audit, dataset.key, day, "empty")
 
     for dataset in ALL_DATASETS:
         state = states[dataset.key]
@@ -491,6 +618,10 @@ def update_all_datasets(today_str: str) -> Dict[str, bool]:
         state["terms"] = dataset.terms
         state["meta"] = dataset.meta
         save_json(dataset.filename, state)
+
+    audit_after = json.dumps(audit, ensure_ascii=False, sort_keys=True)
+    if audit_after != audit_before:
+        save_json(MAKEUP_AUDIT_FILE, audit)
 
     return changed
 

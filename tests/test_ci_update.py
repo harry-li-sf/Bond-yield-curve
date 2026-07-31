@@ -305,6 +305,48 @@ class PresetModelTests(unittest.TestCase):
         self.assertIn("window.PRESET_MODEL_DATA", saved[ci_update.PRESET_MODEL_FILE])
 
 
+class MakeupTradingDayTests(unittest.TestCase):
+    def setUp(self):
+        self.dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "gov_spot")
+
+    def test_candidates_cover_historical_and_current_makeup_weekends(self):
+        self.assertIn("2013-01-05", ci_update.MAKEUP_WORKDAY_CANDIDATES)
+        self.assertIn("2025-10-11", ci_update.MAKEUP_WORKDAY_CANDIDATES)
+        self.assertIn("2026-01-04", ci_update.MAKEUP_WORKDAY_CANDIDATES)
+        self.assertIn("2026-10-10", ci_update.MAKEUP_WORKDAY_CANDIDATES)
+
+    def test_existing_dataset_date_does_not_need_makeup_check(self):
+        state = {"dates": ["2025-10-11"], "terms": self.dataset.terms, "rows": [[]]}
+
+        needs_check = ci_update.makeup_dataset_needs_check(
+            self.dataset, state, {}, "2025-10-11", "2026-07-31"
+        )
+
+        self.assertFalse(needs_check)
+
+    def test_finalized_empty_audit_does_not_need_makeup_check(self):
+        state = {"dates": [], "terms": self.dataset.terms, "rows": []}
+        audit = {
+            "schemaVersion": ci_update.MAKEUP_AUDIT_SCHEMA_VERSION,
+            "datasets": {self.dataset.key: {"2025-10-11": "empty"}},
+        }
+
+        needs_check = ci_update.makeup_dataset_needs_check(
+            self.dataset, state, audit, "2025-10-11", "2026-07-31"
+        )
+
+        self.assertFalse(needs_check)
+
+    def test_missing_unverified_makeup_date_needs_check(self):
+        state = {"dates": [], "terms": self.dataset.terms, "rows": []}
+
+        needs_check = ci_update.makeup_dataset_needs_check(
+            self.dataset, state, {}, "2025-10-11", "2026-07-31"
+        )
+
+        self.assertTrue(needs_check)
+
+
 class UpdateTests(unittest.TestCase):
     def test_new_dataset_without_metadata_rebuilds_from_start_date(self):
         dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "rail_ytm")
@@ -353,7 +395,12 @@ class UpdateTests(unittest.TestCase):
              patch.object(ci_update, "load_existing", side_effect=fake_load_existing), \
              patch.object(ci_update, "save_json", side_effect=lambda path, data: saved.update({path: data})), \
              patch.object(ci_update, "iter_weekdays", return_value=["2026-07-15"]), \
-             patch.object(ci_update, "fetch_searchyc_bundle", side_effect=fake_fetch_searchyc_bundle):
+             patch.object(ci_update, "MAKEUP_WORKDAY_CANDIDATES", set()), \
+             patch.object(
+                 ci_update,
+                 "fetch_searchyc_bundle_result",
+                 side_effect=lambda curves, qxll, day: (fake_fetch_searchyc_bundle(curves, qxll, day), True),
+             ):
             changed = ci_update.update_all_datasets("2026-07-15")
 
         self.assertIn(["rail"], calls)
@@ -381,7 +428,12 @@ class UpdateTests(unittest.TestCase):
              patch.object(ci_update, "load_existing", side_effect=fake_load_existing), \
              patch.object(ci_update, "save_json", side_effect=lambda path, data: saved.update({path: data})), \
              patch.object(ci_update, "iter_weekdays", return_value=["2026-07-15"]), \
-             patch.object(ci_update, "fetch_searchyc_bundle", side_effect=fake_fetch_searchyc_bundle):
+             patch.object(ci_update, "MAKEUP_WORKDAY_CANDIDATES", set()), \
+             patch.object(
+                 ci_update,
+                 "fetch_searchyc_bundle_result",
+                 side_effect=lambda curves, qxll, day: (fake_fetch_searchyc_bundle(curves, qxll, day), True),
+             ):
             changed = ci_update.update_all_datasets("2026-07-15")
 
         self.assertEqual(calls, [(["local_gov"], "0")])
@@ -408,7 +460,12 @@ class UpdateTests(unittest.TestCase):
              patch.object(ci_update, "load_existing", side_effect=fake_load_existing), \
              patch.object(ci_update, "save_json"), \
              patch.object(ci_update, "iter_weekdays", return_value=["2026-07-15"]), \
-             patch.object(ci_update, "fetch_searchyc_bundle", side_effect=fake_fetch_searchyc_bundle):
+             patch.object(ci_update, "MAKEUP_WORKDAY_CANDIDATES", set()), \
+             patch.object(
+                 ci_update,
+                 "fetch_searchyc_bundle_result",
+                 side_effect=lambda curves, qxll, day: (fake_fetch_searchyc_bundle(curves, qxll, day), True),
+             ):
             changed = ci_update.update_all_datasets("2026-07-15")
 
         self.assertEqual(calls, [(["local_gov"], "0")])
@@ -434,6 +491,110 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual(output["terms"][:3], ["1Y", "2Y", "3Y"])
         self.assertEqual(output["rows"][0][0], 2.0)
         self.assertGreater(output["rows"][0][1], 3.0)
+
+    def test_makeup_date_backfills_all_eighteen_datasets_independently(self):
+        datasets = list(ci_update.ALL_DATASETS)
+        states = {
+            dataset.filename: {
+                "dates": [ci_update.dataset_history_start(dataset), "2025-10-10", "2026-07-31"],
+                "terms": dataset.terms,
+                "rows": [
+                    [0.9] + [None] * (len(dataset.terms) - 1),
+                    [1.0] + [None] * (len(dataset.terms) - 1),
+                    [1.1] + [None] * (len(dataset.terms) - 1),
+                ],
+                "meta": dataset.meta,
+            }
+            for dataset in datasets
+        }
+        saved = {}
+        audit = ci_update.empty_makeup_audit()
+
+        def fake_fetch_result(curves, qxll, day):
+            self.assertEqual(day, "2025-10-11")
+            return ({curve.key: {"1Y": 2.0} for curve in curves}, True)
+
+        with patch.object(ci_update, "load_existing", side_effect=lambda path, terms=None: states[path]), \
+             patch.object(ci_update, "load_makeup_audit", return_value=audit), \
+             patch.object(ci_update, "save_json", side_effect=lambda path, data: saved.update({path: data})), \
+             patch.object(ci_update, "iter_weekdays", return_value=[]), \
+             patch.object(ci_update, "MAKEUP_WORKDAY_CANDIDATES", {"2025-10-11"}), \
+             patch.object(ci_update, "fetch_searchyc_bundle_result", side_effect=fake_fetch_result, create=True):
+            changed = ci_update.update_all_datasets("2026-07-31")
+
+        self.assertEqual(set(changed), {dataset.key for dataset in datasets})
+        self.assertTrue(all(changed.values()))
+        for dataset in datasets:
+            self.assertEqual(
+                saved[dataset.filename]["dates"],
+                [
+                    ci_update.dataset_history_start(dataset),
+                    "2025-10-10",
+                    "2025-10-11",
+                    "2026-07-31",
+                ],
+            )
+            self.assertEqual(audit["datasets"][dataset.key]["2025-10-11"], "data")
+
+    def test_successful_empty_makeup_result_is_finalized_and_not_retried(self):
+        dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "gov_spot")
+        state = {
+            "dates": [ci_update.PREMIUM_HISTORY_START_DATE, "2025-10-10", "2026-07-31"],
+            "terms": dataset.terms,
+            "rows": [
+                [0.9] * len(dataset.terms),
+                [1.0] * len(dataset.terms),
+                [1.1] * len(dataset.terms),
+            ],
+            "meta": dataset.meta,
+        }
+        audit = ci_update.empty_makeup_audit()
+        calls = []
+
+        def fake_fetch_result(curves, qxll, day):
+            calls.append(day)
+            return ({}, True)
+
+        def run_once():
+            with patch.object(ci_update, "ALL_DATASETS", [dataset]), \
+                 patch.object(ci_update, "load_existing", return_value=state), \
+                 patch.object(ci_update, "load_makeup_audit", return_value=audit), \
+                 patch.object(ci_update, "save_json"), \
+                 patch.object(ci_update, "iter_weekdays", return_value=[]), \
+                 patch.object(ci_update, "MAKEUP_WORKDAY_CANDIDATES", {"2025-10-11"}), \
+                 patch.object(ci_update, "fetch_searchyc_bundle_result", side_effect=fake_fetch_result, create=True):
+                ci_update.update_all_datasets("2026-07-31")
+
+        run_once()
+        run_once()
+
+        self.assertEqual(calls, ["2025-10-11"])
+        self.assertEqual(audit["datasets"][dataset.key]["2025-10-11"], "empty")
+
+    def test_failed_makeup_request_remains_retryable(self):
+        dataset = next(d for d in ci_update.ALL_DATASETS if d.key == "gov_spot")
+        state = {
+            "dates": [ci_update.PREMIUM_HISTORY_START_DATE, "2025-10-10", "2026-07-31"],
+            "terms": dataset.terms,
+            "rows": [
+                [0.9] * len(dataset.terms),
+                [1.0] * len(dataset.terms),
+                [1.1] * len(dataset.terms),
+            ],
+            "meta": dataset.meta,
+        }
+        audit = ci_update.empty_makeup_audit()
+
+        with patch.object(ci_update, "ALL_DATASETS", [dataset]), \
+             patch.object(ci_update, "load_existing", return_value=state), \
+             patch.object(ci_update, "load_makeup_audit", return_value=audit), \
+             patch.object(ci_update, "save_json"), \
+             patch.object(ci_update, "iter_weekdays", return_value=[]), \
+             patch.object(ci_update, "MAKEUP_WORKDAY_CANDIDATES", {"2025-10-11"}), \
+             patch.object(ci_update, "fetch_searchyc_bundle_result", return_value=({}, False), create=True):
+            ci_update.update_all_datasets("2026-07-31")
+
+        self.assertNotIn("2025-10-11", audit.get("datasets", {}).get(dataset.key, {}))
 
 
 if __name__ == "__main__":

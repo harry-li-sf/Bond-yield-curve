@@ -285,6 +285,17 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("premiumCounterEndTerm", text)
         self.assertIn("function counterCycleBp", text)
 
+    def test_counter_cycle_uses_2500_and_750_day_moving_averages(self):
+        text = INDEX.read_text(encoding="utf-8")
+        start = text.index("function counterCycleBp")
+        end = text.index("function premiumLongSpreadBp", start)
+        body = text[start:end]
+        self.assertIn("monitorRate(2500, 'gov_spot'", body)
+        self.assertIn("monitorRate(750, 'gov_spot'", body)
+        self.assertNotIn("monitorRate(250, 'gov_spot'", body)
+        self.assertIn("国债2500日移动平均 - 国债750日移动平均", text)
+        self.assertNotIn("国债2500日移动平均 - 国债250日移动平均", text)
+
     def test_discount_generation_eval_and_compare_premiums_are_separate(self):
         text = INDEX.read_text(encoding="utf-8")
         self.assertIn("evalFrontPremiumBp", text)
@@ -386,6 +397,23 @@ class FrontendTests(unittest.TestCase):
         self.assertIn("endIdx - MA_TABLE_DATE_COUNT + 1", text)
         self.assertIn("maTimeSeriesEndDateSelect", text)
         self.assertIn("MA_KEY_TERMS.filter(term => terms.includes(term))", text)
+
+    def test_frontend_makeup_weekends_match_the_backend_calendar(self):
+        text = INDEX.read_text(encoding="utf-8")
+        start = text.index("const TRADE_WEEKENDS = new Set")
+        end = text.index("]);", start)
+        block = text[start:end]
+        for day in [
+            "2013-01-05",
+            "2016-02-06",
+            "2017-01-22",
+            "2025-10-11",
+            "2026-01-04",
+            "2026-10-10",
+        ]:
+            self.assertIn(day, block)
+        for wrong_day in ["2016-01-30", "2017-01-21", "2020-02-01"]:
+            self.assertNotIn(wrong_day, block)
 
 
 if __name__ == "__main__":
