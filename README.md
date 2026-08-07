@@ -139,7 +139,9 @@ http://localhost:8000/
 7. 提交标题可以写：`add preset rate research section`。
 8. 提交后进入仓库上方 `Actions`。
 9. 左侧选择 `每日自动更新18组中债利率数据并部署`。
-10. 点右侧 `Run workflow`，分支选 `main`，再点绿色 `Run workflow`。
-11. 等运行记录变成绿色对勾后，打开 GitHub Pages 网页并按 `Ctrl + F5` 强制刷新。
+
+<!-- redeploy GitHub Pages: 2026-08-07 -->
+11. 点右侧 `Run workflow`，分支选 `main`，再点绿色 `Run workflow`。
+12. 等运行记录变成绿色对勾后，打开 GitHub Pages 网页并按 `Ctrl + F5` 强制刷新。
 
 首次运行会为新增曲线补历史数据，时间会比日常更新久。之后每天只补最新交易日，速度会快很多。
